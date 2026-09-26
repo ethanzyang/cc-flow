@@ -14,13 +14,14 @@ session）、**停点只有 5 处**（其余由 review agent 代拍板）、**�
 /flow:init
 ```
 
-`/flow:init` 会调研仓库、问 ≤3 个问题（敏感域必问），然后在一个 `chore/adopt-flow` 分支里生成：
+`/flow:init` 负责编排：先放 flow 的规则 → 完整跑 `/conductor:setup` 的产品定义访谈（产品、产品规范、技术栈、代码规范、首个 track）→ 问敏感域、补 flow 那层 → 最后激活 hook。已有提交的仓库在 `chore/adopt-flow` worktree 里做。产出：
 
 | 文件 | 内容 |
 |---|---|
 | `conductor/workflow.md` | 规则正文：**托管区**（插件下发）+ 文末**项目补充 P1–P6**（本项目自己的） |
 | `dev-docs/TEAM_GUIDE.md` | 10 分钟上手导览（托管） |
-| `conductor/{product,tech-stack,product-guidelines,tracks,backlog}.md` | conductor 前置文件 |
+| `conductor/{product,product-guidelines,tech-stack}.md`、`code_styleguides/`、首个 track | conductor setup 访谈产出 |
+| `conductor/backlog.md` | 未立项待办池 |
 | `CLAUDE.md` | 工作流段 + 分支纪律（已存在则只插入这一段） |
 | `.claude/flow.json` | hook 配置：保护路径、敏感路径、格式化命令等 |
 | `.claude/settings.json` | 合并：插件自动安装（flow + conductor）+ 权限基线 |

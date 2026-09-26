@@ -1,103 +1,158 @@
 ---
 name: init
-description: 把 flow 开发工作流接入当前仓库——生成 conductor/ 骨架、规则正文（托管区 + 项目补充）、CLAUDE.md 工作流段、.claude/flow.json 与 settings（插件自动安装 + 权限基线）。用户说「接入 flow」「初始化工作流」「flow init」、或在一个还没有 .claude/flow.json 的仓库里想用 /flow:* 时触发。
+description: 把 flow 开发工作流接入当前仓库。编排：先放 flow 的规则 → 跑完整的 /conductor:setup 产品定义访谈（产品 / 规范 / 技术栈 / 代码规范 / 首个 track）→ 补 flow 自己那层（敏感域、项目补充、hook 规则）→ 最后激活 hook。用户说「接入 flow」「初始化工作流」「flow init」、或在还没有 .claude/flow.json 的仓库里想用 /flow:* 时触发；也用于给 flow 0.1.0 接入过的项目补做 conductor 访谈。
 ---
 
-目标：一次 session 把一个仓库接入 flow，结束时 `doctor.sh` 全过、改动在一个 PR 里。
-确定性的部分交给脚本（只建缺失文件、从不覆盖）；需要判断的部分（项目补充、CLAUDE.md、保护规则）
-由你调研后用 Edit 填。脚本目录：`${CLAUDE_PLUGIN_ROOT}/scripts/`。
+你是编排者：**产品定义交给 conductor 的完整 setup 访谈**，flow 只负责放规则、补自己那层、最后激活
+hook。确定性步骤交给脚本 `${CLAUDE_PLUGIN_ROOT}/scripts/init-project.sh`（`status` / `seed` /
+`finish`）。
 
-## 0. 前置
-
-- 不在 git 仓库里 → 问用户是否 `git init`（这是唯一需要问的前置）。
-- `command -v jq python3 gh`：缺 jq 就停下让用户装（flow hook 全靠它）；缺 python3 / gh 记进汇报。
-- 已有 `.claude/flow.json` → 本仓库已接入，改跑 `bash "${CLAUDE_PLUGIN_ROOT}/scripts/doctor.sh"`
-  报告体检结果，按需引导到 `/flow:sync`，结束。
-
-## 1. 调研（subagent，别占主上下文）
-
-派一个 Explore subagent 返回结论（不要大段代码）：
-
-- **技术栈与命令**：语言/框架/包管理器（看 go.mod、package.json + 锁文件、pyproject、Cargo.toml、
-  Makefile、CI 配置里实际跑的命令）→ 依赖 / 构建 / 测试 / lint / dev server / 格式化命令
-- **层划分**：目录结构体现的层（如 handler/service/model/web），给判档「≤2 层」用
-- **敏感域候选**：计费/支付/鉴权/权限/风控/数据迁移/调度等目录与文件（给出 glob）
-- **保护候选**：生成文件、第三方校验文件、有重复键的 JSON（i18n 常见）、vendor 目录
-- **UI**：有无前端、主题切换机制、有无设计系统目录
-- **既有约定**：已有的 CLAUDE.md / AGENTS.md / .cursorrules / CONTRIBUTING 里的规则
-- **主干名**：`git symbolic-ref refs/remotes/origin/HEAD` 或本地 main/master
-
-## 2. 访谈（≤3 问，一次 AskUserQuestion 问完）
-
-只问调研答不了、且会改变接入结果的：
-
-1. **敏感域**：列出调研找到的候选让用户多选/补充（碰到即三档、PR 必须用户合并）——**必问**
-2. **产品一句话 + 目标用户**（仓库里没有 README/产品说明时才问）
-3. 其余真有歧义的（例如两个候选测试命令不知道用哪个）；没有就不问
-
-## 3. 建工作区
-
-- 仓库**还没有任何提交** → 就地做，最后作为首个提交。
-- 已有提交 → `git fetch -q` 后用 **EnterWorktree（名为 adopt-flow）** 或
-  `git worktree add -b chore/adopt-flow .claude/worktrees/adopt-flow origin/<主干>`，之后所有写入都在
-  worktree 里。接入完成前 flow 的 hook 不会生效（`.claude/flow.json` 还没进主干），这是预期的。
-
-## 4. 跑脚本生成骨架
+## 0. 摸底（写任何文件之前）
 
 ```bash
-bash "${CLAUDE_PLUGIN_ROOT}/scripts/init-project.sh" "<工作目录>" --main <主干> \
-  --allow 'Bash(<测试命令前缀>:*)' --allow 'Bash(<构建命令前缀>:*)'
+bash "${CLAUDE_PLUGIN_ROOT}/scripts/init-project.sh" status "$(pwd)"
 ```
 
-`--allow` 只放**只读或本地无副作用**的常用命令（测试、构建、lint）。脚本输出每个文件是「已创建」
-还是「已存在」；「无标记」「待插入」两类需要你处理（见第 5 步）。
+- 可用 skill 里没有 `conductor:setup` → 停下，请用户先装 conductor：
+  `/plugin marketplace add https://github.com/pilotparpikhodjaev/conductor_cc.git` +
+  `/plugin install conductor@conductor-cc`。flow 的二/三档依赖它。
+- 没有 `jq` → 停下请用户安装（flow 的 hook 全靠它）。
+- 记下 `maturity`（greenfield 新项目 / brownfield 已有代码）——这是 flow 在放任何文件**之前**
+  的判定，第 3 步要原样交给 conductor。
 
-## 5. 填内容（用 Edit，不整文件重写已有文件）
+按输出选路线：
 
-1. **`conductor/workflow.md` 文末 P1–P6**：P1 敏感域（名称 — 路径）、P2 层划分、P3 命令块、
-   P4 UI（无 UI 就写「无 UI」）、P5 失败基线（在主干上把测试跑一遍，记下已知失败；全绿写「无」）、
-   P6 项目规则（从既有约定里提炼**流程相关**的）。不留（待填）。
-2. **`.claude/flow.json`**：
-   - `sensitive_paths`：P1 对应的 glob（形如 `*/billing/*`，`*` 可跨目录）
-   - `protected_paths`：模板已有 .env / CI；按调研补（每条带 `reason`，会原样回给模型）
-   - `no_full_rewrite` / `json_dup_key_check`：有重复键或必须局部编辑的文件（如 i18n locale）；
-     `json_dup_key_check.known` 填**当前已存在**的重复键（历史遗留不拦，只拦新增）
-   - `format_on_edit`：`{"globs": ["*.go"], "cmd": "gofmt -w \"$FILE\""}`，cmd 在被改文件所属仓库
-     根目录执行，文件路径在 `$FILE`
-   - `worktree_links`：被 gitignore 但运行必需的本地文件（缺省 `.env`）
-3. **CLAUDE.md**：新生成的 → 填 `{{NAME}}` `{{TAGLINE}}` `{{STACK}}` `{{BUILD}}` `{{TEST}}` `{{LINT}}`、
-   关键目录、核心规则（从既有约定迁入高频编码规则）。已存在且「待插入」→ 把
-   `${CLAUDE_PLUGIN_ROOT}/templates/CLAUDE.flow-section.md` 的内容（`{{MAIN}}` 换成主干名）插到
-   命令段之后，其余不动。
-4. **`conductor/product.md` / `tech-stack.md` / `product-guidelines.md`**：按调研与访谈填实；
-   没有 UI 的项目 product-guidelines 只写 Content Guidelines。
-5. **语言风格指南**（可选）：conductor 插件自带 `templates/code_styleguides/<lang>.md`，
-   `find ~/.claude/plugins -path '*conductor*/templates/code_styleguides/<lang>.md' | head -1`
-   找得到就拷进 `conductor/code_styleguides/`。
-6. 既有 `conductor/workflow.md` 报「无标记」→ 按 `/flow:sync` 第 3 节「旧项目第一次接入」迁移。
+| status | 路线 |
+|---|---|
+| `flow=none` + `conductor=none` | **A 完整接入** |
+| `flow=none` + `conductor=real` | **B 已有 conductor**：跳过第 3 步；`workflow=unmarked` 时先按 `/flow:sync` 第 3 节把它迁成托管版 |
+| `conductor=partial:<step>` | **C 续跑**：第 3 步从断点继续（conductor 自己会 resume），其余同 A |
+| `conductor=flow-seeded` | **D 补做产品定义**：flow 0.1.0 把 setup 直接标成了完成、访谈没跑过 |
+| `flow=adopted` + `conductor=real` | 已接入：跑 `doctor.sh` 汇报，按需引导 `/flow:sync`，结束 |
 
-## 6. 验收
+## 1. 工作区
+
+- `git=none` → 问用户是否 `git init -b main`（唯一的前置问题），然后就地做。
+- `git=unborn` → 就地做。
+- `git=commits` → `git fetch -q`（有远端时）后 **EnterWorktree**（A/B/C 名为 `adopt-flow`，D 名为
+  `redo-product-definition`）。必须用 EnterWorktree 切换 session 的工作目录——conductor setup 按
+  当前目录写文件，只 `git worktree add` 不切目录会写进主 checkout。
+
+**D 路线额外一步**（在 worktree 里）：把 0.1.0 生成的薄文档与伪造状态清掉，单独提交，让 conductor
+面对干净工作区：
 
 ```bash
+git rm -q conductor/setup_state.json conductor/product.md conductor/product-guidelines.md conductor/tech-stack.md
+git rm -q -r conductor/code_styleguides      # 存在才删
+git commit -q -m "chore: reset flow-seeded conductor setup"
+```
+
+`conductor/workflow.md`（含已填的项目补充 P1–P6）、`CLAUDE.md`、`.claude/` **保留**。
+
+## 2. 放规则（seed）
+
+```bash
+bash "${CLAUDE_PLUGIN_ROOT}/scripts/init-project.sh" seed "<工作目录>" --main <主干>
+```
+
+它会：生成 `conductor/workflow.md`（托管区 + 项目补充骨架；已存在则同步托管区）与
+`dev-docs/TEAM_GUIDE.md`；把 workflow.md 同内容放一份到 `.conductor_templates/workflow.md`
+（conductor setup 2.5 会优先拷这个，于是拷进去的就是 flow 的规则；该目录只在本地 git 排除、不进
+提交）；建 `conductor/backlog.md`、`CLAUDE.md`（不存在时）、合并 `.claude/settings.json`、补
+`.gitignore`。**不写** product / tech-stack 等文档，**不写** `.claude/flow.json`。
+
+输出里「无标记」→ 按 `/flow:sync` 第 3 节迁移后重跑 seed；「待插入」→ 第 4 步处理。
+
+## 3. 完整跑 conductor setup（B 路线跳过）
+
+先告诉用户一句：「接下来是 conductor 的产品定义访谈：产品、产品规范、技术栈、代码规范，每节最多
+5 问，每题都可以选 E 让它自动生成后再审；新项目还有需求访谈和第一个 track 的提议。」
+
+然后调用 skill `conductor:setup`，**完整执行它的协议**，只按下面几条覆盖（本 skill 是编排者；
+workflow.md §7 已声明 conductor 与 flow 冲突时以 flow 为准）：
+
+1. **新旧项目判定**：用第 0 步的 `maturity`，不要重判——`.git`、`.claude/`、`CLAUDE.md`、
+   `conductor/workflow.md`、`dev-docs/`、`.conductor_templates/` 都是 flow 刚放的。
+   greenfield 就走「What do you want to build?」和 3.1 需求访谈。
+2. **greenfield 的 git init**：已在第 1 步做过，跳过。
+3. **「uncommitted changes」警告**：flow seed 的文件未提交属预期，提示一句即可，不必停。
+4. **2.5 workflow**：**不问** default / customize——它描述的「80% 覆盖率、每任务提交、git notes」
+   是它自带模板，flow 已定：不设覆盖率阈值、任务勾选与代码同一提交 + phase 末一次记账、不用
+   git notes。按它的第 1 步从 `.conductor_templates/workflow.md` 拷到 `conductor/workflow.md`
+   （内容相同），写 state `2.5_workflow`，继续。
+5. **3.2 提议首个 track**：在提议里附上 flow 分诊（档位 / 车道，workflow §2，按 §2.3 判断拆不拆）。
+   brownfield 且用户没有明确的下一件事 → 允许「暂不建 track」：写 state
+   `3.3_initial_track_generated`，直接到 3.4。
+6. **3.3**：`conductor/tracks.md` 已存在时**不要重建**，按 workflow §7 格式在末尾追加（前置 `---`）。
+   生成 spec / plan 之后：spec ≤400 行；plan 按 `conductor/workflow.md`（已是 flow 规则）；
+   然后派 `flow:spec-reviewer` 审，finding 直接修，≤3 轮（workflow §3.3）。
+7. **3.4**：提交照做（`conductor(setup): Add conductor set up files`）。它最后那句「现在跑
+   /conductor:implement」**不要照说**——回到本 skill 第 4 步。
+
+conductor 的访谈是一次性的项目定义，不受 workflow §0 停点 2「≤3 问」限制（那条管单个需求）。
+
+## 4. 补 flow 自己那层
+
+D 路线：P1–P6 与 hook 规则都已填过——只按新的产品/技术栈定义补改有变化的项，敏感域已答过就不再问。
+
+先读刚产出的 `conductor/product.md`、`tech-stack.md`；brownfield 再派一个 Explore subagent 返回：
+构建/测试/lint/dev/格式化命令、目录体现的层、敏感域与保护候选（给 glob）、UI 与主题切换方式、
+既有约定（AGENTS.md / .cursorrules / CONTRIBUTING）。
+
+**问用户（一次 AskUserQuestion）**：
+
+1. **敏感域**（必问）：列候选，并给一个「无」选项。措辞如实：「碰到即按三档走（更重的流程 +
+   review agent 过目），按规则 PR 由你来合并（规则约束，不是硬拦截）」。建议只选出错会造成直接
+   损失且难补救的（钱、权限）；「改既有表列」本来就是三档，不需要为此把 schema 选成敏感域。
+2. 真有歧义的命令或约定（没有就不问）。
+
+**填写（用 Edit；此时 hook 尚未激活）**：
+
+- `conductor/workflow.md` 文末 P1–P6：P1 敏感域（名称 — 路径；「无」就写无）、P2 层划分、
+  P3 命令块、P4 UI（无 UI 写「无 UI」）、P5 失败基线（主干上跑一遍测试记下已知失败；全绿写「无」；
+  新项目还没代码写「无」）、P6 项目规则。技术还没定的项写「首个 track 定技术后补」，不留（待填）。
+- `CLAUDE.md`：新生成的填 `{{NAME}}` `{{TAGLINE}}` `{{STACK}}` `{{BUILD}}` `{{TEST}}` `{{LINT}}`、
+  关键目录、核心规则；「待插入」的把 `${CLAUDE_PLUGIN_ROOT}/templates/CLAUDE.flow-section.md`
+  （`{{MAIN}}` 换成主干名）插到命令段之后。
+- **hook 规则**写进 scratch 目录下的 `flow-rules.json`（**不要**写进仓库），只放非空字段：
+  ```json
+  {
+    "sensitive_paths": ["*/billing/*"],
+    "protected_paths": [{ "glob": "*/generated/*", "reason": "生成文件，改源再生成。" }],
+    "no_full_rewrite": [{ "glob": "*/locales/*.json", "reason": "有重复键。" }],
+    "json_dup_key_check": [{ "glob": "*/locales/*.json", "known": ["已存在的重复键"] }],
+    "format_on_edit": [{ "globs": ["*.go"], "cmd": "gofmt -w \"$FILE\"" }],
+    "worktree_links": [".env"]
+  }
+  ```
+  glob 用 shell `case` 语义（`*` 可跨目录）；`format_on_edit.cmd` 在被改文件所属仓库根执行，
+  路径在 `$FILE`；数组字段会与模板默认项（.env、CI 保护）合并。
+
+## 5. 激活并体检
+
+```bash
+bash "${CLAUDE_PLUGIN_ROOT}/scripts/init-project.sh" finish "<工作目录>" --rules "<scratch>/flow-rules.json"
 bash "${CLAUDE_PLUGIN_ROOT}/scripts/doctor.sh" "<工作目录>"
 ```
 
-必须「结论：通过」；△ 项能处理的处理掉，处理不了的写进汇报。再抽查一条 hook：把
-`{"tool_name":"Edit","tool_input":{"file_path":"<主 checkout>/README.md"}}` 喂给
-`CLAUDE_PROJECT_DIR=<工作目录> bash "${CLAUDE_PLUGIN_ROOT}/scripts/guard-edit.sh"`，
-工作目录在主干上时应 exit 2（在 worktree 分支上则 exit 0，说明判定按分支走）。
+`finish` 删掉 `.conductor_templates/`、缺 `tracks.md` 就补空的、**最后**写 `.claude/flow.json`
+——它一出现，flow 的 hook 就对仓库生效；就地接入的项目此时主干已有提交，之后的 Edit 会被
+「主 checkout 只读」拦下。所以**所有填写必须在 finish 之前做完**；doctor 报出要改的，就地项目
+开 worktree 改，worktree 项目直接改。D 路线已有 flow.json，finish 只做清理与检查。
 
-## 7. 提交与交付
+doctor 必须「结论：通过」；△ 项能处理的处理掉，处理不了的写进汇报。
 
-- 提交：`chore: adopt flow workflow`（描述英文）。
-- 有 `origin` 且 `gh` 已登录 → 推分支、开 PR，PR 描述列出生成/修改的文件与 doctor 输出。
-  没有远端 → 在主干上 `git merge --ff-only chore/adopt-flow` 后删 worktree（本地项目没有 PR 环节）。
-- 合并后提醒：**主 checkout 从此只读**；队友 clone 后信任目录即会被提示安装 flow 与 conductor。
+## 6. 提交与交付
+
+- 提交：A/B/C `chore: adopt flow workflow`；D `docs(conductor): redo product definition via conductor setup`。
+- 在 worktree 里且有 `origin` + `gh` 已登录 → 推分支、开 PR，描述列出生成/修改的文件与 doctor 输出。
+  worktree 但没有远端 → 主 checkout `git merge --ff-only <分支>` 后删 worktree。就地接入 → 提交即完成。
+- 合并后提醒：主 checkout 从此只读；队友 clone 后信任目录即会被提示安装 flow 与 conductor。
 
 ## 汇报（三行）
 
 ```
-现在能用什么：本仓库已接入 flow——/flow:triage 分诊、主 checkout 只读、合并后 /flow:closeout；敏感域 <n> 条已登记
-还缺什么：<doctor 的 △ 项 / 访谈里没定的 / 无>
-需要你做什么：合并 PR #n（合并后新开一个 session，开场应看到「本仓库启用 flow 工作流」）
+现在能用什么：本仓库已接入 flow + conductor——产品/技术栈文档已定，<首个 track <id> 已立项（spec review PASS）｜未建首个 track>；新需求 /flow:triage，合并后 /flow:closeout
+还缺什么：<doctor 的 △ 项 / 技术未定的 P3 命令 / 无>
+需要你做什么：<合并 PR #n ｜ 无>；首个 track 按档位执行（三档新开 session 跑 /conductor:implement）
 ```

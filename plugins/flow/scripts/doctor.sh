@@ -37,10 +37,18 @@ else
   [ "$(jq '(.sensitive_paths // []) | length' "$cfg")" -gt 0 ] || w "sensitive_paths 为空：碰到敏感域文件不会有机械提醒（没有敏感域可忽略）"
 fi
 
-echo "conductor 前置文件"
+echo "conductor"
 for f in conductor/product.md conductor/tech-stack.md conductor/workflow.md conductor/tracks.md; do
   [ -f "$proj/$f" ] && y "$f" || n "$f 缺失（conductor 的 new-track / implement 会直接中止）"
 done
+cstate=$("$FLOW_ROOT/scripts/init-project.sh" status "$proj" 2>/dev/null | sed -n 's/^conductor=//p')
+case "$cstate" in
+  real) y "conductor setup 已完整跑过" ;;
+  flow-seeded) n "conductor setup 是 flow 0.1.0 直接标成完成的，产品定义访谈没跑过：重跑 /flow:init 补做" ;;
+  none) n "没跑过 conductor setup：跑 /flow:init" ;;
+  *) n "conductor setup 没跑完（${cstate}）：跑 /flow:init 续上" ;;
+esac
+[ -d "$proj/.conductor_templates" ] && w ".conductor_templates/ 还在（接入时的临时模板）：init-project.sh finish 会删掉它"
 
 echo "托管区"
 "$FLOW_ROOT/scripts/sync-managed.sh" --check "$proj" | sed 's/^/  /'
