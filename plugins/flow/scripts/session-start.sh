@@ -27,15 +27,15 @@ wf="$FLOW_PROJECT/conductor/workflow.md"
 if [ -f "$wf" ]; then
   mv=$(sed -n 's/.*flow:managed:begin v\([0-9][0-9.]*\).*/\1/p' "$wf" | head -1)
   if [ -z "$mv" ]; then
-    add "⚠️  conductor/workflow.md 没有 flow 托管标记——跑 /flow:sync 查看如何接入。"
+    add "⚠️  conductor/workflow.md 没有 flow 托管标记——跑 /flow:init 查看如何接入。"
   else
     case $(flow_ver_cmp "$mv" "$pv") in
-      -1) add "⚠️  conductor/workflow.md 托管区是 v${mv}，本机 flow 插件已是 v${pv}：在 worktree 里跑 /flow:sync 同步。" ;;
+      -1) add "⚠️  conductor/workflow.md 托管区是 v${mv}，本机 flow 插件已是 v${pv}：在 worktree 里跑 /flow:init 同步。" ;;
       1) add "⚠️  conductor/workflow.md 托管区是 v${mv}，比本机 flow 插件 v$pv 新：先 /plugin marketplace update cc-flow 再 /plugin update flow。" ;;
     esac
   fi
 else
-  add "⚠️  缺 conductor/workflow.md（flow 规则正文）：跑 /flow:init 或 /flow:sync。"
+  add "⚠️  缺 conductor/workflow.md（flow 规则正文）：跑 /flow:init 或 /flow:init。"
 fi
 
 command -v python3 >/dev/null 2>&1 || add "⚠️  本机没装 python3，flow 的 JSON 重复键检查不会生效。"

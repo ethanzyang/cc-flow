@@ -148,7 +148,7 @@ git -C "$P" checkout -q main
 echo "session-start / stop"
 expect_out "SessionStart 注入 flow 上下文" session-start.sh "$(jq -nc --arg c "$P" '{cwd:$c}')" "本仓库启用 flow 工作流"
 sed -i.bak 's/flow:managed:begin v[0-9.]*/flow:managed:begin v0.0.1/' "$P/conductor/workflow.md" && rm -f "$P/conductor/workflow.md.bak"
-expect_out "托管区落后 → 提示 /flow:sync" session-start.sh "$(jq -nc --arg c "$P" '{cwd:$c}')" "/flow:sync"
+expect_out "托管区落后 → 提示 /flow:init" session-start.sh "$(jq -nc --arg c "$P" '{cwd:$c}')" "/flow:init"
 git -C "$P" checkout -q -- conductor/workflow.md 2>/dev/null || true
 out=$(printf '{}' | CLAUDE_PROJECT_DIR="$N" "$S/session-start.sh")
 [ -z "$out" ] && ok "未启用 flow → SessionStart 输出为空" || bad "未启用 flow → SessionStart 输出为空" "$out"
@@ -298,6 +298,14 @@ jq '.worktree_links = [".env"]' "$S/../templates/flow.json" >"$L/.claude/flow.js
 jq -e '.design.dir == "ui-design" and .worktree_links == [".env", "ui-design/.project-id"]' "$L/.claude/flow.json" >/dev/null &&
   ok "已接入项目补设计模块：flow.json 登记 design.dir（自定义目录，不重复软链）" || bad "已接入项目补设计模块" "$(cat "$L/.claude/flow.json")"
 [ -f "$L/ui-design/SYNC.md" ] && ok "自定义设计目录生成 SYNC.md" || bad "自定义设计目录生成 SYNC.md"
+
+echo "rules frontmatter"
+mkdir -p "$K/.claude/rules"
+printf -- '---\ndescription: x\nglobs: ["*.go"]\n---\n- rule\n' >"$K/.claude/rules/go.md"
+printf -- '---\npaths:\n  - "web/**/*.ts"\n---\n- rule\n' >"$K/.claude/rules/web.md"
+out=$("$S/doctor.sh" "$K" 2>&1)
+case "$out" in *"go.md 用的是 globs:"*) ok "doctor 指出用 globs: 的规则" ;; *) bad "doctor 指出用 globs: 的规则" "$out" ;; esac
+case "$out" in *"web.md 用的是 globs:"*) bad "paths: 规则不误报" ;; *) ok "paths: 规则不误报" ;; esac
 
 echo
 echo "passed: $pass  failed: $failn"

@@ -2,9 +2,18 @@
 
 分诊驱动的 Claude Code 开发工作流，做成插件，新项目 3 步接入。从 token-router 的 workflow v2.1 抽离。
 
-核心机制：**按风险三档决定流程重量**（一档一页规格直接做 / 二档开 track / 三档全套 + 立项实现分
-session）、**停点只有 5 处**（其余由 review agent 代拍板）、**主 checkout 只读 + worktree**、
-**合并即收尾**。规则正文见 [`plugins/flow/templates/workflow.md`](plugins/flow/templates/workflow.md)。
+目标：**人专注立项**——立项做对了，实现按 plan 自己跑，设计系统串在同一条线上。
+
+```
+新需求 → /flow:triage ─┬─ 一档 → /flow:spec（一页规格，一个 session 做完）
+                       ├─ 二/三档 → /conductor:new-track → spec review → 立项终点
+                       └─ Lane A（视觉未定）→ /flow:design-track（拉设计包 → new-track → spec review）
+       立项之后 → /conductor:implement（phase gate：review agent + /flow:visual-verify）→ PR → /flow:closeout
+```
+
+机制：**按风险三档决定流程重量**、**停点只有 5 处**（其余由 review agent 代拍板）、**主 checkout
+只读 + worktree**、**合并即收尾**、**犯错就沉淀成规则**（hook > rules / skill > CLAUDE.md）。规则正文见
+[`plugins/flow/templates/workflow.md`](plugins/flow/templates/workflow.md)。
 
 ## 新项目接入
 
@@ -22,7 +31,8 @@ session）、**停点只有 5 处**（其余由 review agent 代拍板）、**�
 | `dev-docs/TEAM_GUIDE.md` | 10 分钟上手导览（托管） |
 | `conductor/{product,product-guidelines,tech-stack}.md`、`code_styleguides/`、首个 track | conductor setup 访谈产出 |
 | `conductor/backlog.md` | 未立项待办池 |
-| `CLAUDE.md` | 工作流段 + 分支纪律（已存在则只插入这一段） |
+| `CLAUDE.md` | 按原则写的高频规则（≤约 100 行）+ 工作流段 + 分支纪律；已存在的插入工作流段，过长则把按路径 / 按领域的规则分流出去 |
+| `.claude/rules/*.md` | 按文件类型的规则（frontmatter `paths:`，读到匹配文件才加载）；只为既有约定建 |
 | `.claude/flow.json` | hook 配置：保护路径、敏感路径、格式化命令等 |
 | `.claude/settings.json` | 合并：插件自动安装（flow + conductor）+ 权限基线 |
 
@@ -39,16 +49,13 @@ session）、**停点只有 5 处**（其余由 review agent 代拍板）、**�
 
 | 命令 | 用途 |
 |---|---|
-| `/flow:init` | 接入新项目 |
-| `/flow:sync` | 插件升级后把托管区同步进项目；也用于接入手写过 workflow.md 的旧项目 |
-| `/flow:triage` | 分诊卡：档位 + 车道 + 拆分判断 + 「做完用户能用到什么」 |
+| `/flow:triage` | 分诊卡：档位 + 车道 + 拆分判断 + 「做完用户能用到什么」，把需求送进对的立项入口 |
 | `/flow:spec` | 一档全流程：≤3 问 → 一页 DELTA 规格 → TDD → review → PR |
-| `/flow:closeout` | 合并后收尾三连 + 记账 |
-| `/flow:catchup` | `/clear` 后恢复上下文 |
+| `/flow:design-track` | Lane A 立项一条龙：从 Claude Design 拉设计包 → 快照 → new-track → spec review |
 | `/flow:visual-verify` | 截图矩阵验收（对设计稿 / 对现状 / 对 spec 清单） |
-| `/flow:design-track` | 设计四件套快照进 track |
-| `/flow:design-push` | 设计系统目录 → 自己的 Claude Design 副本（首次选/建项目）；仅手动调用 |
-| `/flow:design-pull` | Claude Design 改动 → 设计系统目录并开 PR；仅手动调用 |
+| `/flow:closeout` | 合并后收尾三连 + 记账 |
+| `/flow:design push` / `pull` | 仓库设计系统 ⇄ 自己的 Claude Design 副本；仅手动调用 |
+| `/flow:init` | 接入新项目；已接入时：插件升级后同步托管区、补设计模块 |
 
 **Agents**：`flow:spec-reviewer`（立项审阅）、`flow:phase-gate-reviewer`（phase 验收）、
 `flow:architecture-reviewer`、`flow:security-reviewer`。
@@ -70,8 +77,9 @@ session）、**停点只有 5 处**（其余由 review agent 代拍板）、**�
 
 - `design-system/` 是设计唯一真相源，协作规范 `design-system/SYNC.md`（托管区 + 项目补充 D1–D3）
 - Claude Design 的设计系统项目是账号私有的，所以用 git 合流：每人 `/design-login` 后
-  `/flow:design-push` 建自己的云端副本；在云端改完当天 `/flow:design-pull` 拉回开 PR
-- Lane A：`/flow:design-pull <feature>` → `/flow:design-track <feature>` → `/conductor:new-track`
+  `/flow:design push` 建自己的云端副本；改了已有设计文件当天 `/flow:design pull` 拉回开 PR
+- Lane A：在云端按 feature 文件夹画完 → `/flow:design-track <feature>`（设计包 + spec/plan 同一个立项 PR）
+- CLAUDE.md 设计段声明「美学方向归设计系统」：有设计输入时 frontend-design 等 skill 的自由发挥条款失效
 - 实现侧镜像 token 的（如 `web/src/styles/tokens.css`），在 SYNC.md D2 写清并加字符级比对测试——
   每个项目不一样，flow 只留位置、不做通用实现
 
@@ -96,7 +104,7 @@ session）、**停点只有 5 处**（其余由 review agent 代拍板）、**�
   "json_dup_key_check": [                           // JSON 合法 + 同一对象内不许新增重复键
     { "glob": "*/web/src/i18n/locales/*.json", "known": ["历史遗留的重复键"] }
   ],
-  "design": { "dir": "design-system" }              // 设计模块；有它 /flow:sync 才管 SYNC.md
+  "design": { "dir": "design-system" }              // 设计模块；有它 /flow:init 才管 SYNC.md
 }
 ```
 
@@ -106,7 +114,7 @@ glob 用 shell `case` 语义，`*` 可以跨 `/`，所以开头写 `*/` 就能�
 ## 托管区与升级
 
 `conductor/workflow.md` 里夹在 `<!-- flow:managed:begin vX -->` 和 `<!-- flow:managed:end -->`
-之间的内容由插件下发，`/flow:sync` 整段覆盖；标记之外（文末项目补充）一字不动。
+之间的内容由插件下发，`/flow:init` 整段覆盖；标记之外（文末项目补充）一字不动。
 
 - 在某个项目里发现**所有项目都适用**的流程问题 → 改本仓库 `plugins/flow/templates/`，发版
 - **只属于那个项目**的 → 写进它的 workflow.md 项目补充
@@ -122,7 +130,7 @@ glob 用 shell `case` 语义，`*` 可以跨 `/`，所以开头写 `*/` 就能�
 3. `plugins/flow/.claude-plugin/plugin.json` 的 `version` 加一（**不加，已安装的项目拿不到**），
    写 `plugins/flow/CHANGELOG.md`
 4. 提交推送。各项目：`/plugin marketplace update cc-flow` → `/plugin update flow` → 开新 session
-   看到漂移提示后 `/flow:sync`
+   看到漂移提示后 `/flow:init`
 
 本地调试：`claude --plugin-dir ./plugins/flow`（不用安装，直接加载工作区代码）。
 

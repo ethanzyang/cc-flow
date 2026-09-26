@@ -232,7 +232,7 @@ do_design() {
     echo "已追加  .gitignore: $line"
   fi
 
-  if [ -f "$target/CLAUDE.md" ] && grep -q '/flow:design-push' "$target/CLAUDE.md"; then
+  if [ -f "$target/CLAUDE.md" ] && grep -q '/flow:design push' "$target/CLAUDE.md"; then
     kept "CLAUDE.md（已含设计段）"
   else
     echo "待插入  CLAUDE.md 设计段：templates/CLAUDE.design-section.md（{{DESIGN_DIR}} → ${d}），放在工作流段之后"
@@ -250,7 +250,7 @@ do_design() {
     echo "已登记  .claude/flow.json: design.dir=$d"
   fi
   echo
-  echo "主干：${main_}；下一步：填 $d/SYNC.md 项目补充 D1–D3、workflow.md P4；各成员首次用 /flow:design-push 建自己的云端副本。"
+  echo "主干：${main_}；下一步：填 $d/SYNC.md 项目补充 D1–D3、workflow.md P4；各成员首次用 /flow:design push 建自己的云端副本。"
 }
 
 # ---------------------------------------------------------------- finish

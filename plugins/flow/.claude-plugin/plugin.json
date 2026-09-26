@@ -1,6 +1,6 @@
 {
   "name": "flow",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "分诊驱动的 Claude Code 开发工作流：三档分诊、立项/实现分 session、独立 review agent 验收、主 checkout 只读 + worktree、合并即收尾。与 conductor 插件配合使用。",
   "author": {
     "name": "ethanzyang"

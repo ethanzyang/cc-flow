@@ -11,7 +11,7 @@
   `conductor@conductor-cc` 两个插件——都装上（插件仓库是私有的，本机 `gh auth login` 过即可）。
 - 依赖：`jq`、`python3`、`gh`。缺 `jq` 时 flow 的 hook 全部失效（SessionStart 会提示）。
 - 截图验收用 Playwright MCP（`/flow:visual-verify`）。
-- 项目启用了设计模块（有 `design-system/SYNC.md`）：一次性 `/design-login` + `/flow:design-push`，
+- 项目启用了设计模块（有 `design-system/SYNC.md`）：一次性 `/design-login` + `/flow:design push`，
   在你自己的 Claude Design 账号里建好设计系统副本（只能本人在自己电脑上做）。
 
 ## 1. 一切从分诊开始
@@ -78,13 +78,12 @@
 ### Lane A — 视觉不确定
 
 ```
-① 设计    /flow:design-push 同步最新版，在自己的 Claude Design 副本里画（feature 文件夹名 = 仓库目录名）
-② 拉回    当天 /flow:design-pull <feature> 拉回设计真相源开 PR——没拉回来的改动等于没发生
-③ 立项    /flow:design-track <feature>  ← 校验四件套，快照进 conductor/tracks/
-          再 /conductor:new-track       ← INVENTORY 全部条目进验收标准
-④ 实现    /conductor:implement，TDD 照常
-⑤ 验收    每个行为 phase：review agent + /flow:visual-verify 模式①（needs_work 阻断）
-⑥ 收尾    /flow:closeout；token/组件演化必须已在同一 PR 落回设计真相源；合并后各人 /flow:design-push
+① 设计    /flow:design push 同步最新版，在自己的 Claude Design 副本里画（feature 文件夹名 = 仓库目录名）
+② 立项    /flow:design-track <feature>  ← 拉回设计包、校验四件套、快照进 track、接着 new-track 出
+                                          spec/plan（INVENTORY 全部进验收标准）、spec review，停在立项终点
+③ 实现    /conductor:implement，TDD 照常
+④ 验收    每个行为 phase：review agent + /flow:visual-verify 模式①（needs_work 阻断）
+⑤ 收尾    /flow:closeout；token/组件演化必须已在同一 PR 落回设计真相源；合并后各人 /flow:design push
 ```
 
 **四件套** = BRIEF / SPEC / INVENTORY / DECISIONS（+ tokens.css + 高保真稿）。缺一件
@@ -141,13 +140,38 @@
 | `/flow:spec` | 一档全流程：≤3 问 → 一页规格 → 实现 → PR | 小而明确的需求 |
 | `/conductor:new-track` | 二/三档立项：spec + plan | 跨层 / 多 phase / 高风险 |
 | `/conductor:implement` | 按 plan 执行 | 立项之后（三档要新 session） |
-| `/flow:design-push` | 设计系统目录 → 自己的 Claude Design 副本（首次会建项目） | 开画前 / 设计改动合并后 |
-| `/flow:design-pull` | Claude Design 改动 → 设计系统目录（开 PR） | 云端改完当天 |
-| `/flow:design-track` | 把设计四件套快照进 track | Lane A 立项 |
+| `/flow:design-track` | Lane A 立项一条龙：拉设计包 → 快照 → new-track → spec review | 有设计稿的 UI 功能 |
+| `/flow:design push` / `pull` | 仓库设计系统 ⇄ 自己的 Claude Design 副本（首次 push 会建项目） | 开画前 push；改了已有设计文件当天 pull |
 | `/flow:visual-verify` | 截图矩阵验收（①对设计稿 ②对现状 ③对 spec 清单） | UI phase gate |
 | `/flow:closeout` | 合并后收尾三连 + 记账 + `blocked_by` 后继确认 | PR 合并后立刻 |
-| `/flow:catchup` | `/clear` 或新 session 后恢复上下文 | 接着干之前的活 |
-| `/flow:sync` | 把插件新版的托管区同步进本仓库 | SessionStart 提示版本落后时 |
+| `/flow:init` | 接入；已接入时：插件升级后同步托管区、补设计模块 | 一次性 / SessionStart 提示版本落后时 |
+
+Claude Code 内置：`/code-review`（审当前 diff）、`/simplify`（只做质量清理，不找 bug）、`/batch`
+（大规模跨文件批量改，各自 worktree）、`/rewind`（回退到检查点）、`/context`（看上下文占用）。
+
+**`/clear` 什么时候用**
+
+| 场景 | 做法 |
+|---|---|
+| 换一个不相关的任务 | **必须 `/clear`** |
+| 同一个功能连续做 | 不用清 |
+| 纠正两次仍不对 | `/clear` 重开，用吸收了教训的更具体的 prompt |
+| 上下文接近满 | `/clear`，conductor 的 plan.md 会带回进度 |
+| 立项完要进实现（三档） | 新开 session（workflow §3.3） |
+
+**反模式**
+
+| 反模式 | 正确做法 |
+|---|---|
+| 不分诊直接开工 | 先 `/flow:triage` |
+| 小需求也开 track 走全套 | 一档走 `/flow:spec`，一个 session 一个 PR |
+| 拆 track 时把用户能用到的那半截拆到后面 | 先答「做完第一段用户能用到什么」，答不出就不拆 |
+| 拆完只立项第一段、第二段丢进 backlog | 两段同时立项，后段标 `blocked_by` |
+| 每个决策点都停下来问用户 | 只有 workflow §0 那 5 处停点；其余开 review agent 代拍板 |
+| 在主 checkout 上直接改 | 走 worktree（hook 会拦） |
+| 合并后不收尾 | 立刻 `/flow:closeout` |
+| 汇报讲 Phase / SHA / review 轮次 | 三行：能用什么 / 缺什么 / 需要你做什么 |
+| Claude 犯错就当场口头纠正 | 写成规则：hook > rules / skill > CLAUDE.md；流程类进 workflow.md |
 
 ---
 
@@ -161,7 +185,7 @@
 | 纯前端页面也要先写测试？ | 展示型改动可豁免 RED-GREEN，换成 `/flow:visual-verify`（workflow §4.5） |
 | 改了项目 hook 却不生效 | 项目 settings/hook 锚定 session 启动目录，worktree 分支上的新 hook 合并后才生效 |
 | 在 main 上改文件被拦 | 设计如此：先 `EnterWorktree`；要改保护规则去 `.claude/flow.json` |
-| workflow.md 托管区想改 | 别在项目里改——提到 flow 插件仓库发版，再 `/flow:sync` |
+| workflow.md 托管区想改 | 别在项目里改——提到 flow 插件仓库发版，再 `/flow:init` |
 | Claude Design 面板显示 "This design system is empty" | `preview/*.html` 首行缺 `<!-- @dsCard group="…" -->` |
 | 推送设计系统报 Proxy connection ended | 单次超过约 1MB——分批，大字体单独一批，原样重试一次 |
 | 拉回的 SVG 多了十几字节 | 平台把自闭合标签展开了，语义相同，丢弃这类 diff |

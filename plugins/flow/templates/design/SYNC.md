@@ -2,7 +2,7 @@
 
 > Claude Design 的设计系统项目是**账号私有**的，不同账号之间无法共享。所以用 git 当合流点：
 > **本目录是唯一真相源，每个人的 Claude Design 项目只是个人工作副本。**
-> 推送 / 拉回用 `/flow:design-push` / `/flow:design-pull`，本文是它们背后的规矩。
+> 推送 / 拉回用 `/flow:design push` / `/flow:design pull`，本文是它们背后的规矩。
 > 本项目特有的内容（目录职责、token 派生关系、已知缺口）在文末「项目补充 D1–D3」。
 
 ## 0. 一句话规矩
@@ -31,7 +31,7 @@
 > 文件上传——别人没法替你把设计系统推进你的账号，也没有"共享给同事"的入口。
 
 1. **授权**：Claude Code 里跑 `/design-login`（给 DesignSync 工具授权，不用另配 MCP）。
-2. **跑 `/flow:design-push`**：首次会列出你账号下可写的设计系统项目，让你选一个或新建。
+2. **跑 `/flow:design push`**：首次会列出你账号下可写的设计系统项目，让你选一个或新建。
    新建必须用 `create_project`——设计系统类型在创建时定死，普通项目事后改不成设计系统。
    projectId 写进本目录的 `.project-id`（已 gitignore，因人而异，**绝不提交**），然后全量推送。
 3. 在 claude.ai/design 顶部的 `Design system` 下拉里选中它——之后新建的设计项目会自动套这套 token。
@@ -40,7 +40,7 @@
 
 ---
 
-## 3. Push：仓库 → 自己的云端副本（`/flow:design-push`）
+## 3. Push：仓库 → 自己的云端副本（`/flow:design push`）
 
 - **开工前先拉最新主干**，别在旧版本上画。
 - **传哪些文件以 git 为准**：`git ls-files <本目录>`，排除 `SYNC.md`（仓库协作规范，不进云端）；
@@ -56,19 +56,18 @@
 
 ---
 
-## 4. Pull：云端副本 → 仓库（`/flow:design-pull`）
+## 4. Pull：云端副本 → 仓库（`/flow:design pull`）
 
 **只拉你实际改过的文件，不要整树同步。** 写回走 worktree 分支 + PR（主 checkout 只读）。
 
-### 4.1 拉回一个 feature 设计包（Lane A 立项前置）
+### 4.1 拉回一个 feature 设计包（由 `/flow:design-track <feature>` 在立项时完成）
 
 1. **命名约定**：云端项目里的 feature 文件夹名 = 本目录下的 `<feature>/`（小写下划线，如
    `usage_export`）。**在云端开画时就按这个名字建文件夹**，拉回时零改名。
 2. **齐装** = 四件套（`BRIEF.md` / `SPEC.md` / `INVENTORY.md` / `DECISIONS.md`）+ `tokens.css` +
    高保真稿（`*.dc.html` 或 `screen-*.html`）+ `assets/`。四件套缺件的先在云端补齐——
    `/flow:design-track` 会拒绝缺件的包。
-3. 分支 `design/<feature>`，PR 只含这个文件夹；设计过程动了公共 token 就按 §5 拆出单独 PR。
-4. 合并后 `/flow:design-track <feature>` 立项。
+3. 设计包与 track 快照、spec/plan 进**同一个立项 PR**；设计过程动了公共 token 就按 §5 先拆出单独 PR。
 
 ### 4.2 硬限制
 
@@ -99,5 +98,5 @@
 
 1. **token / 组件演化随实现 PR 落回本目录**——不是收尾后补。有 token 镜像测试的项目（D2）会直接
    拦住漂移；页面稿 / 组件类的演化没有测试钉住，靠 review 时对照 PR diff 检查本目录是否同步。
-2. **merge 后各人 `/flow:design-push`** 把更新推到自己的云端副本——否则下次在旧稿上画，拉回来会
+2. **merge 后各人 `/flow:design push`** 把更新推到自己的云端副本——否则下次在旧稿上画，拉回来会
    覆盖别人的改动（§5 第 2 条的事故路径）。

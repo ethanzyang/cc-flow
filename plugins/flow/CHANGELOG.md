@@ -3,6 +3,22 @@
 版本号即 `plugins/flow/.claude-plugin/plugin.json` 的 `version`，也是各项目 `conductor/workflow.md`
 托管区标记里的版本。**不改 version 的提交，已安装的项目拿不到。**
 
+## 0.3.0 — 2026-09-26
+
+收敛到核心使命：**人专注立项，立项做对后实现按 plan 自己跑，设计系统串在同一条线上**。skill 从 10 个减到 7 个。
+
+- 合并：`sync` 并入 `init`（已接入项目重跑 init = 升级；细节在 `skills/init/upgrade.md`）；
+  `design-push` + `design-pull` 合成 `/flow:design push|pull`
+- 删除：`catchup`（实现阶段 `/conductor:implement` 会从 plan.md 接上进度）
+- `/flow:design-track` 变成 Lane A 立项一条龙：从 Claude Design 拉设计包 → 校验四件套 → 快照 →
+  接着 new-track（复用已登记的 track，不重复建）→ spec review → 立项终点；设计包与 spec/plan 同一个立项 PR
+- `/flow:triage`：二/三档立项明确走到立项终点（spec review → 登记 → 立项提交 → 三行交接 → 停）
+- CLAUDE.md 按 token-router v2.1 的原则写：只写每个 session 都要知道、不写就会错的；按文件类型的规则进
+  `.claude/rules/`（frontmatter 用 `paths:`）；领域陷阱进 domain-traps skill；测试钉住的压成「契约 + 测试名」
+- CLAUDE.md 设计段加「美学方向归设计系统」（有设计输入时设计类 skill 的自由发挥条款失效）
+- doctor：CLAUDE.md 过长提醒；rules 用了 `globs:`（Claude Code 只认 `paths:`，会被当成无条件规则）提醒
+- TEAM_GUIDE 补 `/clear` 判断表、反模式表、内置命令
+
 ## 0.2.0 — 2026-09-26
 
 设计模块：从 token-router 的 `design-system/` + `SYNC.md` 抽出，可选启用。

@@ -22,6 +22,7 @@
   （`.claude/flow.json` 的 `worktree_links`）
 - 多个 worktree 同时跑 dev server 会抢端口，手动错开
 
-新教训归档顺序：代码类 → hook（`.claude/flow.json`；硬禁止用 `permissions.deny`）→ skill → 本文件；
-流程类 → 通用的提到 flow 插件仓库，本项目的写进 `conductor/workflow.md`「项目补充」。
+新教训归档顺序：代码类 → hook（`.claude/flow.json`；硬禁止用 `permissions.deny`）→ 只对某类文件成立
+的进 `.claude/rules/`（frontmatter 用 `paths:`）/ 领域陷阱进 skill → 最后才进本文件；流程类 → 通用的
+提到 flow 插件仓库，本项目的写进 `conductor/workflow.md`「项目补充」。
 **每次 Claude 犯错就把它写成一条规则**，而不是当场口头纠正。

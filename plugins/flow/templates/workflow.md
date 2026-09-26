@@ -5,7 +5,7 @@
 > **session 边界、停点、拆分守则也在本文件。**
 >
 > 本文件分两段：**托管区**（到 `flow:managed:end` 为止，所有项目一致，由 flow 插件下发，
-> `/flow:sync` 整段覆盖）+ 文末**项目补充 P1–P6**（本项目的敏感域、层划分、命令、设计源、失败
+> `/flow:init` 整段覆盖）+ 文末**项目补充 P1–P6**（本项目的敏感域、层划分、命令、设计源、失败
 > 基线、其他规则）。正文里写「P1」「P3」即指文末那一节。
 >
 > 设计依据：token-router workflow v2.1（2026-08-29 双镜头审计 + 事故复盘）+ 外部对照（Anthropic
@@ -100,9 +100,11 @@
 **教训归档顺序**（修完之后）：
 - **代码类**：能进 **hook** 就进 hook（确定性强制）——本项目的保护路径 / 禁止整文件重写 / 敏感
   路径 / 保存即格式化写进 `.claude/flow.json`，flow 的 hook 会读；硬禁止用 `permissions.deny`
-  → 其次 **skill**（项目 `.claude/skills/`，如高危域陷阱全文放 `domain-traps`）→ 最后才 CLAUDE.md
-  （高频规则）；错字级不留痕。
-- **流程类**：**所有项目都适用的** → 提到 flow 插件仓库（改托管区模板，发版后各项目 `/flow:sync`）；
+  → 其次按需加载的载体：只对某类文件成立的进 **`.claude/rules/`**（frontmatter 用 `paths:`，读到匹配
+  文件才加载）；某个领域的陷阱全文进 **skill**（项目 `.claude/skills/domain-traps/`，CLAUDE.md 每域只留
+  ≤3 行契约 + 指针；已有测试钉住的压成「契约 + 测试名」）→ 最后才 CLAUDE.md（每个 session 都要知道的
+  高频规则，≤约 100 行）；错字级不留痕。
+- **流程类**：**所有项目都适用的** → 提到 flow 插件仓库（改托管区模板，发版后各项目 `/flow:init`）；
   **只属于本项目的** → 本文件「项目补充」。memory 只留指针，不留正文。
 
 > ⚠ **改项目自己的 hook / settings.json 的人必读**：`.claude/settings.json` 与
@@ -116,8 +118,8 @@
 ## §3 Track 生命周期
 
 ```
-[Lane A] /flow:design-push → 在自己的 Claude Design 副本里画 → /flow:design-pull <feature> 拉回设计真相源（P4）
-       → /flow:design-track 快照入仓 → /conductor:new-track → §3.3 立项终点
+[Lane A] /flow:design push → 在自己的 Claude Design 副本里画（feature 文件夹）
+       → /flow:design-track <feature>：拉回设计包 + 快照入仓 + /conductor:new-track + spec review → §3.3 立项终点
        → /conductor:implement → phase gate（review agent + /flow:visual-verify）→ §6 收尾
 [Lane B/C] spec 先行 → /conductor:new-track → 同上（无设计输入，或 §3.1 降级形态）
 ```
@@ -138,8 +140,8 @@ track 含**视觉不确定**的 UI → Lane A 全量四件套（§3.2）。其�
 ### 3.2 Design Input Stage（Lane A）
 
 - **来源**：设计真相源目录（P4；flow 设计模块默认 `design-system/`）。多人协作、云端 push/pull、
-  token 派生关系一律见该目录的 `SYNC.md`，本文件不重复；同步用 `/flow:design-push` /
-  `/flow:design-pull`。P4 为「无」的项目：四件套直接写在一个临时目录，用
+  token 派生关系一律见该目录的 `SYNC.md`，本文件不重复；同步用 `/flow:design push` /
+  `/flow:design pull`。P4 为「无」的项目：四件套直接写在一个临时目录，用
   `/flow:design-track --from <dir>` 快照（要长期用设计系统就 `/flow:init` 补设计模块）。
 - **行为已先冻结时的设计输入**（同一 track 的前序 phase，或按 §2.3 拆出的前一段 track）：把已冻结
   的行为做成 **spec 投影**当 BRIEF「输入材料表」——页面/模块清单、字段清单 + 真实示例数据、状态
@@ -186,7 +188,7 @@ track 含**视觉不确定**的 UI → Lane A 全量四件套（§3.2）。其�
 7. **提交代码**：conventional commit（§8.3），描述用英文；**任务勾 `[x]` 与代码同一提交**
 8. **phase 末一次记账**：该 phase 全部任务的 SHA 一次回填 + 一条 `conductor(plan):` 提交
 
-> 不做逐任务 `git notes`、不做逐任务单独记账提交（无消费者：`/flow:catchup`、
+> 不做逐任务 `git notes`、不做逐任务单独记账提交（无消费者：
 > `/conductor:implement`、review agent 都不读 notes；检查点报告的正式载体是
 > `phase<N>-verify/REPORT.md`）。想附摘要就写进 commit body。
 
@@ -275,7 +277,7 @@ merge 后**立刻**执行，不留尾巴（可用 `/flow:closeout`）：
 3. **叠链 PR**：开始合并前先把后续 PR 全部 `gh pr edit --base main`——否则删 base 分支时
    GitHub 会直接**关闭**（而非重定向）叠在上面的 PR
 4. **UI track 附加——设计回写**：实现过程中发生的 token / 组件演化必须已在**同一 PR** 里落回
-   设计真相源（P4）；收尾时提醒各协作者 `/flow:design-push` 把更新同步到各自云端副本
+   设计真相源（P4）；收尾时提醒各协作者 `/flow:design push` 把更新同步到各自云端副本
 5. 归档决策：track 目录保留原地（默认）；superseded 时在 metadata 记 `superseded_by`
 6. **合并后汇报**：§3.3 三行格式
 

@@ -52,7 +52,7 @@ esac
 
 echo "托管区"
 "$FLOW_ROOT/scripts/sync-managed.sh" --check "$proj" | sed 's/^/  /'
-[ "${PIPESTATUS[0]}" = 0 ] || n "托管文件缺失或落后：跑 /flow:sync"
+[ "${PIPESTATUS[0]}" = 0 ] || n "托管文件缺失或落后：跑 /flow:init"
 if [ -f "$proj/conductor/workflow.md" ] && grep -q '（待填）' "$proj/conductor/workflow.md"; then
   w "workflow.md「项目补充」还有（待填）项：$(grep -c '（待填）' "$proj/conductor/workflow.md") 处"
 fi
@@ -60,12 +60,12 @@ fi
 ddir=$(jq -r '.design.dir // empty' "$cfg" 2>/dev/null)
 if [ -n "$ddir" ]; then
   echo "设计模块（$ddir/）"
-  [ -f "$proj/$ddir/SYNC.md" ] && y "$ddir/SYNC.md" || n "缺 $ddir/SYNC.md：跑 /flow:sync"
+  [ -f "$proj/$ddir/SYNC.md" ] && y "$ddir/SYNC.md" || n "缺 $ddir/SYNC.md：跑 /flow:init"
   grep -qxF "$ddir/.project-id" "$proj/.gitignore" 2>/dev/null && y ".gitignore 忽略 $ddir/.project-id" ||
     n ".gitignore 缺 $ddir/.project-id（每人的 Claude Design 项目 id 不同，不能提交）"
   [ -z "$(git -C "$proj" ls-files "$ddir/.project-id" 2>/dev/null)" ] && y ".project-id 未进版本库" ||
     n "$ddir/.project-id 被提交了：git rm --cached 移出版本库"
-  grep -q '/flow:design-push' "$proj/CLAUDE.md" 2>/dev/null && y "CLAUDE.md 含设计段" || w "CLAUDE.md 没有设计段"
+  grep -q '/flow:design push' "$proj/CLAUDE.md" 2>/dev/null && y "CLAUDE.md 含设计段" || w "CLAUDE.md 没有设计段"
   if grep -q '（待补' "$proj/$ddir/SYNC.md" 2>/dev/null; then w "$ddir/SYNC.md 项目补充 D1 还有（待补）"; fi
 fi
 
@@ -83,6 +83,16 @@ else
 fi
 grep -qxF '.claude/worktrees/' "$proj/.gitignore" 2>/dev/null && y ".gitignore 忽略 .claude/worktrees/" || n ".gitignore 缺 .claude/worktrees/（worktree 会被当成未跟踪文件）"
 grep -q '/flow:triage' "$proj/CLAUDE.md" 2>/dev/null && y "CLAUDE.md 含 flow 段" || w "CLAUDE.md 没有 flow 段（模型不知道先分诊）"
+if [ -f "$proj/CLAUDE.md" ]; then
+  lines=$(wc -l <"$proj/CLAUDE.md" | tr -d ' ')
+  [ "$lines" -le 150 ] || w "CLAUDE.md ${lines} 行（每个 session 常驻；把只对某类文件成立的挪进 .claude/rules/、领域陷阱挪进 skill）"
+fi
+for r in "$proj"/.claude/rules/*.md; do
+  [ -f "$r" ] || continue
+  if grep -q '^globs:' "$r" && ! grep -q '^paths:' "$r"; then
+    w "$(basename "$r") 用的是 globs:——Claude Code 只认 paths:，这条规则现在每个 session 都无条件加载"
+  fi
+done
 if [ -f "$proj/CLAUDE.md" ] && grep -q '{{' "$proj/CLAUDE.md"; then
   w "CLAUDE.md 还有 {{占位符}} 未填"
 fi

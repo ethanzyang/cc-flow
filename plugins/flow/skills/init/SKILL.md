@@ -1,6 +1,6 @@
 ---
 name: init
-description: 把 flow 开发工作流接入当前仓库。编排：先放 flow 的规则 → 跑完整的 /conductor:setup 产品定义访谈（产品 / 规范 / 技术栈 / 代码规范 / 首个 track）→ 补 flow 自己那层（敏感域、项目补充、hook 规则）→ 最后激活 hook。用户说「接入 flow」「初始化工作流」「flow init」、或在还没有 .claude/flow.json 的仓库里想用 /flow:* 时触发；也用于给 flow 0.1.0 接入过的项目补做 conductor 访谈。
+description: 把 flow 开发工作流接入当前仓库。编排：先放 flow 的规则 → 跑完整的 /conductor:setup 产品定义访谈（产品 / 规范 / 技术栈 / 代码规范 / 首个 track）→ 补 flow 自己那层（敏感域、项目补充、hook 规则）→ 最后激活 hook。用户说「接入 flow」「初始化工作流」「flow init」、或在还没有 .claude/flow.json 的仓库里想用 /flow:* 时触发；也用于：插件升级后同步托管区、给已接入项目补设计模块、给 flow 0.1.0 接入过的项目补做 conductor 访谈。
 ---
 
 你是编排者：**产品定义交给 conductor 的完整 setup 访谈**，flow 只负责放规则、补自己那层、最后激活
@@ -25,10 +25,10 @@ bash "${CLAUDE_PLUGIN_ROOT}/scripts/init-project.sh" status "$(pwd)"
 | status | 路线 |
 |---|---|
 | `flow=none` + `conductor=none` | **A 完整接入** |
-| `flow=none` + `conductor=real` | **B 已有 conductor**：跳过第 3 步；`workflow=unmarked` 时先按 `/flow:sync` 第 3 节把它迁成托管版 |
+| `flow=none` + `conductor=real` | **B 已有 conductor**：跳过第 3 步；`workflow=unmarked` 时先按 `upgrade.md` 第 2 节把它迁成托管版 |
 | `conductor=partial:<step>` | **C 续跑**：第 3 步从断点继续（conductor 自己会 resume），其余同 A |
 | `conductor=flow-seeded` | **D 补做产品定义**：flow 0.1.0 把 setup 直接标成了完成、访谈没跑过 |
-| `flow=adopted` + `conductor=real` | 已接入：跑 `doctor.sh` 汇报，按需引导 `/flow:sync`；用户要**补设计模块** → **E 路线**，否则结束 |
+| `flow=adopted` + `conductor=real` | 已接入：跑 `doctor.sh` 汇报；托管区落后 → `upgrade.md` 第 1 节；用户要**补设计模块** → **E 路线**；否则结束 |
 
 **E 补设计模块**（已接入的项目）：EnterWorktree（`design-module`）→ 第 4 步的「设计模块」小节 →
 `doctor.sh` → 提交 `chore: add flow design module`、开 PR。其余步骤跳过。
@@ -64,7 +64,7 @@ bash "${CLAUDE_PLUGIN_ROOT}/scripts/init-project.sh" seed "<工作目录>" --mai
 提交）；建 `conductor/backlog.md`、`CLAUDE.md`（不存在时）、合并 `.claude/settings.json`、补
 `.gitignore`。**不写** product / tech-stack 等文档，**不写** `.claude/flow.json`。
 
-输出里「无标记」→ 按 `/flow:sync` 第 3 节迁移后重跑 seed；「待插入」→ 第 4 步处理。
+输出里「无标记」→ 按 `upgrade.md` 第 2 节迁移后重跑 seed；「待插入」→ 第 4 步处理。
 
 ## 3. 完整跑 conductor setup（B 路线跳过）
 
@@ -108,7 +108,7 @@ D 路线：P1–P6 与 hook 规则都已填过——只按新的产品/技术栈
    review agent 过目），按规则 PR 由你来合并（规则约束，不是硬拦截）」。建议只选出错会造成直接
    损失且难补救的（钱、权限）；「改既有表列」本来就是三档，不需要为此把 schema 选成敏感域。
 2. **设计系统**（项目有 UI 时才问；D 路线已答过不问）：「要不要用 Claude Design 管设计系统？——建
-   `design-system/` 作为设计唯一真相源 + 协作规范，之后用 `/flow:design-push` / `/flow:design-pull`
+   `design-system/` 作为设计唯一真相源 + 协作规范，之后用 `/flow:design push` / `/flow:design pull`
    在仓库和你的 Claude Design 之间同步；Lane A 设计先行的需求靠它」。选项：要 / 暂不要（以后可补）。
 3. 真有歧义的命令或约定（没有就不问）。
 
@@ -117,9 +117,23 @@ D 路线：P1–P6 与 hook 规则都已填过——只按新的产品/技术栈
 - `conductor/workflow.md` 文末 P1–P6：P1 敏感域（名称 — 路径；「无」就写无）、P2 层划分、
   P3 命令块、P4 UI（无 UI 写「无 UI」）、P5 失败基线（主干上跑一遍测试记下已知失败；全绿写「无」；
   新项目还没代码写「无」）、P6 项目规则。技术还没定的项写「首个 track 定技术后补」，不留（待填）。
-- `CLAUDE.md`：新生成的填 `{{NAME}}` `{{TAGLINE}}` `{{STACK}}` `{{BUILD}}` `{{TEST}}` `{{LINT}}`、
-  关键目录、核心规则；「待插入」的把 `${CLAUDE_PLUGIN_ROOT}/templates/CLAUDE.flow-section.md`
-  （`{{MAIN}}` 换成主干名）插到命令段之后。
+- **CLAUDE.md**——每个 session 都常驻，按这套原则写（token-router v2.1 从 178 行瘦到 92 行的做法）：
+  - **只写「每个 session 都要知道、不写 Claude 就会做错」的**，祈使句；格式化之类交给 hook。其余分流：
+    碰某类文件才相关 → `.claude/rules/<名>.md`（frontmatter 用 **`paths:`** 列 glob，读到匹配文件才
+    加载；写成 `globs:` 会被当成无条件规则每次都加载）；某个高危领域的陷阱全文 → 项目 skill
+    `.claude/skills/domain-traps/SKILL.md`（description 列出触发的文件名和关键词），CLAUDE.md 每域只留
+    ≤3 行契约 + 指针；已有测试钉住的约束 → 压成「契约 + 测试名」一行；流程 → workflow.md；能机械
+    强制的 → `flow.json` / `permissions.deny`。
+  - 结构：一句话定位（+ 文案红线，细节指向 `conductor/product.md`）/ 命令 / 工作流段 / 分支与并行段 /
+    设计段（启用时）/ 关键目录 / 核心规则（编号；陷阱类附一句为什么）/ 已知陷阱 / 当你不确定时。
+    目标 ≤ 100 行（官方建议 < 200）。
+  - 新生成的：按上面填实模板里的 `{{NAME}}` `{{TAGLINE}}` `{{STACK}}` 等，不留占位符；新项目没有规则
+    可写就空着「核心规则」，**不编造**——规则来自之后每次 Claude 犯错（归档顺序见工作流段）。
+  - 已存在的（「待插入」）：把 `${CLAUDE_PLUGIN_ROOT}/templates/CLAUDE.flow-section.md`（`{{MAIN}}` 换成
+    主干名）插到命令段之后；原文超过约 150 行、或混着只对某类文件有效的规则 / 大段领域陷阱时，按上面
+    的分流挪出去（**语义一条不丢**），挪了什么列进 PR 描述。
+- **`.claude/rules/`**：只为既有约定里**明确写着**的、按文件类型成立的规则建（如后端代码、前端代码、
+  迁移、测试各一份），每份 5–10 条，frontmatter `paths:`；没有就不建，不从通用最佳实践里凑。
 - **设计模块**（选了「要」，或 E 路线）：
   ```bash
   bash "${CLAUDE_PLUGIN_ROOT}/scripts/init-project.sh" design "<工作目录>" [--dir design-system]
@@ -172,6 +186,12 @@ doctor 必须「结论：通过」；△ 项能处理的处理掉，处理不了
 需要你做什么：<合并 PR #n ｜ 无>；首个 track 按档位执行（三档新开 session 跑 /conductor:implement）
 ```
 
-启用了设计模块时再加两行：每个成员首次 `/design-login` + `/flow:design-push`（选或建自己的 Claude
-Design 设计系统项目并全量推送）；还没有设计系统的，在 claude.ai/design 生成后跑 `/flow:design-pull`
-选「首次全量」拉回。
+启用了设计模块时再加两行：每个成员首次 `/design-login` + `/flow:design push`（选或建自己的 Claude
+Design 设计系统项目并全量推送）；还没有设计系统的，在 claude.ai/design 生成后跑
+`/flow:design pull --all` 全量拉回。
+
+
+## 升级 / 接入旧 workflow.md
+
+托管区落后（升级）或 seed 报「无标记」（旧项目手写过 workflow.md）时，读
+`${CLAUDE_PLUGIN_ROOT}/skills/init/upgrade.md` 照做。

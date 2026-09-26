@@ -59,8 +59,12 @@ description: 需求分诊——输出档位、车道、拆分判断与「做完�
 ### 6. 执行
 
 - 一档 → `/flow:spec`
-- 二/三档 → `/conductor:new-track`（Lane A 先设计 → `/flow:design-track`）
+- 二/三档 → `/conductor:new-track`；Lane A → `/flow:design-track <feature>`（它会拉设计包再接 new-track）
 - Lane D → 直接修（复现测试 → 修 → 回归）
+
+二/三档立项不是 new-track 生成完就结束，要走到 **workflow §3.3 立项终点**：spec/plan 生成后派
+`flow:spec-reviewer` 审（二档 1 镜头；三档 2 镜头循环至 PASS，≤3 轮；finding 直接修）→ tracks.md 已登记
+→ 立项提交、开 PR → 输出三行交接，**停下**。三档的敏感域 RED 测试随立项提交冻结（§4.6）。
 
 动手前先 `git fetch`，查有没有既有分支或已合并 PR 在做同一件事；改动一律在 worktree 里做
 （主 checkout 只读，flow hook 会拦）。

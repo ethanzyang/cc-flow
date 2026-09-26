@@ -52,7 +52,7 @@ if [ "$check" = 0 ] && [ "$allow_main" = 0 ] && [ -f "$proj/.claude/flow.json" ]
 fi
 
 render() { # $1 = 模板文件
-  printf '<!-- flow:managed:begin v%s — 本区由 flow 插件托管（github.com/ethanzyang/cc-flow），/flow:sync 会整段覆盖。不要在此手改：通用改进提到插件仓库；本项目特有内容写在托管区之外。 -->\n' "$ver"
+  printf '<!-- flow:managed:begin v%s — 本区由 flow 插件托管（github.com/ethanzyang/cc-flow），/flow:init 会整段覆盖。不要在此手改：通用改进提到插件仓库；本项目特有内容写在托管区之外。 -->\n' "$ver"
   cat "$1"
   printf '%s\n' "$END_LINE"
 }
@@ -82,7 +82,7 @@ while IFS='|' read -r tpl target skel; do
   nb=$(grep -c "^$BEGIN_RE" "$dst" || true)
   ne=$(grep -cxF "$END_LINE" "$dst" || true)
   if [ "$nb" != 1 ] || [ "$ne" != 1 ]; then
-    echo "无标记  $target —— 已存在但没有（或有多组）flow 托管标记，未改动。接入方法见 /flow:sync 说明。"
+    echo "无标记  $target —— 已存在但没有（或有多组）flow 托管标记，未改动。接入方法见 /flow:init「接入旧 workflow.md」。"
     status=1
     rm -f "$block"
     continue

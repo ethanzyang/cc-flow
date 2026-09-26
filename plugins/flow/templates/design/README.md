@@ -2,7 +2,7 @@
 
 > 本文件同时是喂给 Claude Design 的 guide 原文——改它等于改 AI 的设计行为。
 > 这是 flow 放的骨架：第一次在 Claude Design 里从代码库 / 品牌素材生成设计系统后，用
-> `/flow:design-pull` 拉回，用云端生成的版本替换本骨架。协作规范见 `SYNC.md`。
+> `/flow:design pull` 拉回，用云端生成的版本替换本骨架。协作规范见 `SYNC.md`。
 
 ## Product, in 30 seconds
 
