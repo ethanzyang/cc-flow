@@ -116,7 +116,7 @@
 ## §3 Track 生命周期
 
 ```
-[Lane A] 设计（claude-design 等，个人副本）→ 拉回设计真相源（P4）
+[Lane A] /flow:design-push → 在自己的 Claude Design 副本里画 → /flow:design-pull <feature> 拉回设计真相源（P4）
        → /flow:design-track 快照入仓 → /conductor:new-track → §3.3 立项终点
        → /conductor:implement → phase gate（review agent + /flow:visual-verify）→ §6 收尾
 [Lane B/C] spec 先行 → /conductor:new-track → 同上（无设计输入，或 §3.1 降级形态）
@@ -137,9 +137,10 @@ track 含**视觉不确定**的 UI → Lane A 全量四件套（§3.2）。其�
 
 ### 3.2 Design Input Stage（Lane A）
 
-- **来源**：设计真相源目录（P4）。多人协作、云端 push/pull、token 派生关系一律见 P4 指向的协作
-  文档，本文件不重复。P4 为「无」的项目：四件套直接写在一个临时目录，用
-  `/flow:design-track --from <dir>` 快照。
+- **来源**：设计真相源目录（P4；flow 设计模块默认 `design-system/`）。多人协作、云端 push/pull、
+  token 派生关系一律见该目录的 `SYNC.md`，本文件不重复；同步用 `/flow:design-push` /
+  `/flow:design-pull`。P4 为「无」的项目：四件套直接写在一个临时目录，用
+  `/flow:design-track --from <dir>` 快照（要长期用设计系统就 `/flow:init` 补设计模块）。
 - **行为已先冻结时的设计输入**（同一 track 的前序 phase，或按 §2.3 拆出的前一段 track）：把已冻结
   的行为做成 **spec 投影**当 BRIEF「输入材料表」——页面/模块清单、字段清单 + 真实示例数据、状态
   矩阵、交互规则、硬约束与「明确不设计」清单；交给设计者。已冻结的业务规则预填进 DECISIONS，
@@ -274,7 +275,7 @@ merge 后**立刻**执行，不留尾巴（可用 `/flow:closeout`）：
 3. **叠链 PR**：开始合并前先把后续 PR 全部 `gh pr edit --base main`——否则删 base 分支时
    GitHub 会直接**关闭**（而非重定向）叠在上面的 PR
 4. **UI track 附加——设计回写**：实现过程中发生的 token / 组件演化必须已在**同一 PR** 里落回
-   设计真相源（P4）；收尾时提醒各协作者按 P4 的协作文档把更新同步到各自云端副本
+   设计真相源（P4）；收尾时提醒各协作者 `/flow:design-push` 把更新同步到各自云端副本
 5. 归档决策：track 目录保留原地（默认）；superseded 时在 metadata 记 `superseded_by`
 6. **合并后汇报**：§3.3 三行格式
 

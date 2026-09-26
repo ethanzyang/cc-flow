@@ -3,6 +3,21 @@
 版本号即 `plugins/flow/.claude-plugin/plugin.json` 的 `version`，也是各项目 `conductor/workflow.md`
 托管区标记里的版本。**不改 version 的提交，已安装的项目拿不到。**
 
+## 0.2.0 — 2026-09-26
+
+设计模块：从 token-router 的 `design-system/` + `SYNC.md` 抽出，可选启用。
+
+- `/flow:init` 对有 UI 的项目问「要不要用 Claude Design 管设计系统」；已接入的项目可走 E 路线补装
+- `init-project.sh design`：设计目录骨架 `README.md` + 托管的 `SYNC.md`（多账号用 git 合流、
+  push/pull 规矩、分批与核对、256 KiB 上限、SVG 重序列化、字体 push-only、多人协作、收尾动作）+
+  文末项目补充 D1 目录职责 / D2 token 派生关系 / D3 已知缺口；gitignore `.project-id`；
+  `finish` 自动登记 `flow.json` 的 `design.dir` 并软链 `.project-id` 进 worktree
+- 新 skill（仅用户手动调用）：`/flow:design-push`（首次选/建自己的 Claude Design 设计系统项目，
+  按 git 清单分批推送并核对）、`/flow:design-pull`（feature 包 / 指定文件 / 首次全量，走 worktree 开 PR）
+- `/flow:sync` 同时托管设计目录的 `SYNC.md`；doctor 检查 `.project-id` 未进版本库
+- 主 checkout 只读的 hook 不再拦被 gitignore 的本地文件（如 `.project-id`）；`.env` 仍由 protected_paths 保护
+- workflow 托管区 / TEAM_GUIDE 的 Lane A 步骤接上 design-push / design-pull
+
 ## 0.1.1 — 2026-09-26
 
 - **修复：`/flow:init` 不再跳过 conductor 的产品定义访谈。** 0.1.0 为了防 conductor setup 2.5 覆盖

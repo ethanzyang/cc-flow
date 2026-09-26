@@ -28,7 +28,10 @@ bash "${CLAUDE_PLUGIN_ROOT}/scripts/init-project.sh" status "$(pwd)"
 | `flow=none` + `conductor=real` | **B 已有 conductor**：跳过第 3 步；`workflow=unmarked` 时先按 `/flow:sync` 第 3 节把它迁成托管版 |
 | `conductor=partial:<step>` | **C 续跑**：第 3 步从断点继续（conductor 自己会 resume），其余同 A |
 | `conductor=flow-seeded` | **D 补做产品定义**：flow 0.1.0 把 setup 直接标成了完成、访谈没跑过 |
-| `flow=adopted` + `conductor=real` | 已接入：跑 `doctor.sh` 汇报，按需引导 `/flow:sync`，结束 |
+| `flow=adopted` + `conductor=real` | 已接入：跑 `doctor.sh` 汇报，按需引导 `/flow:sync`；用户要**补设计模块** → **E 路线**，否则结束 |
+
+**E 补设计模块**（已接入的项目）：EnterWorktree（`design-module`）→ 第 4 步的「设计模块」小节 →
+`doctor.sh` → 提交 `chore: add flow design module`、开 PR。其余步骤跳过。
 
 ## 1. 工作区
 
@@ -104,7 +107,10 @@ D 路线：P1–P6 与 hook 规则都已填过——只按新的产品/技术栈
 1. **敏感域**（必问）：列候选，并给一个「无」选项。措辞如实：「碰到即按三档走（更重的流程 +
    review agent 过目），按规则 PR 由你来合并（规则约束，不是硬拦截）」。建议只选出错会造成直接
    损失且难补救的（钱、权限）；「改既有表列」本来就是三档，不需要为此把 schema 选成敏感域。
-2. 真有歧义的命令或约定（没有就不问）。
+2. **设计系统**（项目有 UI 时才问；D 路线已答过不问）：「要不要用 Claude Design 管设计系统？——建
+   `design-system/` 作为设计唯一真相源 + 协作规范，之后用 `/flow:design-push` / `/flow:design-pull`
+   在仓库和你的 Claude Design 之间同步；Lane A 设计先行的需求靠它」。选项：要 / 暂不要（以后可补）。
+3. 真有歧义的命令或约定（没有就不问）。
 
 **填写（用 Edit；此时 hook 尚未激活）**：
 
@@ -114,6 +120,15 @@ D 路线：P1–P6 与 hook 规则都已填过——只按新的产品/技术栈
 - `CLAUDE.md`：新生成的填 `{{NAME}}` `{{TAGLINE}}` `{{STACK}}` `{{BUILD}}` `{{TEST}}` `{{LINT}}`、
   关键目录、核心规则；「待插入」的把 `${CLAUDE_PLUGIN_ROOT}/templates/CLAUDE.flow-section.md`
   （`{{MAIN}}` 换成主干名）插到命令段之后。
+- **设计模块**（选了「要」，或 E 路线）：
+  ```bash
+  bash "${CLAUDE_PLUGIN_ROOT}/scripts/init-project.sh" design "<工作目录>" [--dir design-system]
+  ```
+  生成设计目录的 `README.md` 骨架与托管的 `SYNC.md`，gitignore `.project-id`。然后填：`SYNC.md` 文末
+  D1 目录职责、D2 token 派生关系（实现侧镜像 token 的写清源 → 镜像与钉住它的测试；没有写「无」）、
+  D3；`workflow.md` P4（设计真相源目录 / 协作文档 = `<目录>/SYNC.md`）；CLAUDE.md 插入
+  `${CLAUDE_PLUGIN_ROOT}/templates/CLAUDE.design-section.md`（`{{DESIGN_DIR}}` 换成目录名）。
+  `finish` 会自动把 `design.dir` 登记进 flow.json（E 路线由 `design` 子命令直接登记）。
 - **hook 规则**写进 scratch 目录下的 `flow-rules.json`（**不要**写进仓库），只放非空字段：
   ```json
   {
@@ -156,3 +171,7 @@ doctor 必须「结论：通过」；△ 项能处理的处理掉，处理不了
 还缺什么：<doctor 的 △ 项 / 技术未定的 P3 命令 / 无>
 需要你做什么：<合并 PR #n ｜ 无>；首个 track 按档位执行（三档新开 session 跑 /conductor:implement）
 ```
+
+启用了设计模块时再加两行：每个成员首次 `/design-login` + `/flow:design-push`（选或建自己的 Claude
+Design 设计系统项目并全量推送）；还没有设计系统的，在 claude.ai/design 生成后跑 `/flow:design-pull`
+选「首次全量」拉回。

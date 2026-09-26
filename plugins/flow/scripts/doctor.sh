@@ -57,6 +57,18 @@ if [ -f "$proj/conductor/workflow.md" ] && grep -q '（待填）' "$proj/conduct
   w "workflow.md「项目补充」还有（待填）项：$(grep -c '（待填）' "$proj/conductor/workflow.md") 处"
 fi
 
+ddir=$(jq -r '.design.dir // empty' "$cfg" 2>/dev/null)
+if [ -n "$ddir" ]; then
+  echo "设计模块（$ddir/）"
+  [ -f "$proj/$ddir/SYNC.md" ] && y "$ddir/SYNC.md" || n "缺 $ddir/SYNC.md：跑 /flow:sync"
+  grep -qxF "$ddir/.project-id" "$proj/.gitignore" 2>/dev/null && y ".gitignore 忽略 $ddir/.project-id" ||
+    n ".gitignore 缺 $ddir/.project-id（每人的 Claude Design 项目 id 不同，不能提交）"
+  [ -z "$(git -C "$proj" ls-files "$ddir/.project-id" 2>/dev/null)" ] && y ".project-id 未进版本库" ||
+    n "$ddir/.project-id 被提交了：git rm --cached 移出版本库"
+  grep -q '/flow:design-push' "$proj/CLAUDE.md" 2>/dev/null && y "CLAUDE.md 含设计段" || w "CLAUDE.md 没有设计段"
+  if grep -q '（待补' "$proj/$ddir/SYNC.md" 2>/dev/null; then w "$ddir/SYNC.md 项目补充 D1 还有（待补）"; fi
+fi
+
 echo "接入"
 st="$proj/.claude/settings.json"
 if [ -f "$st" ] && jq -e '.enabledPlugins["flow@cc-flow"] == true' "$st" >/dev/null 2>&1; then

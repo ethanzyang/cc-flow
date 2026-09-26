@@ -27,8 +27,8 @@
 
 ### P4 UI 与设计输入
 
-- 设计真相源目录：无
-- 协作/同步文档：无
+- 设计真相源目录：无（启用 flow 设计模块后为 `design-system/`）
+- 协作/同步文档：无（启用后为 `design-system/SYNC.md`）
 - 截图矩阵：light/dark × 375/1280；主题切换方式：（待填）
 - 启动方式（给 `/flow:visual-verify` 用）：（待填）
 

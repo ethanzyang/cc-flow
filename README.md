@@ -47,6 +47,8 @@ session）、**停点只有 5 处**（其余由 review agent 代拍板）、**�
 | `/flow:catchup` | `/clear` 后恢复上下文 |
 | `/flow:visual-verify` | 截图矩阵验收（对设计稿 / 对现状 / 对 spec 清单） |
 | `/flow:design-track` | 设计四件套快照进 track |
+| `/flow:design-push` | 设计系统目录 → 自己的 Claude Design 副本（首次选/建项目）；仅手动调用 |
+| `/flow:design-pull` | Claude Design 改动 → 设计系统目录并开 PR；仅手动调用 |
 
 **Agents**：`flow:spec-reviewer`（立项审阅）、`flow:phase-gate-reviewer`（phase 验收）、
 `flow:architecture-reviewer`、`flow:security-reviewer`。
@@ -61,6 +63,17 @@ session）、**停点只有 5 处**（其余由 review agent 代拍板）、**�
 | PostToolUse Edit/Write | `format_on_edit`；tracks.md 不变量；JSON 重复键；敏感域提醒 |
 | CwdChanged | 进 worktree 时软链 `worktree_links` |
 | Stop | 主 checkout 被写 / 已合并未删的 worktree |
+
+## 设计模块（可选）
+
+有 UI 的项目在 `/flow:init` 时选「要」即启用（已接入的项目重跑 `/flow:init` 补）：
+
+- `design-system/` 是设计唯一真相源，协作规范 `design-system/SYNC.md`（托管区 + 项目补充 D1–D3）
+- Claude Design 的设计系统项目是账号私有的，所以用 git 合流：每人 `/design-login` 后
+  `/flow:design-push` 建自己的云端副本；在云端改完当天 `/flow:design-pull` 拉回开 PR
+- Lane A：`/flow:design-pull <feature>` → `/flow:design-track <feature>` → `/conductor:new-track`
+- 实现侧镜像 token 的（如 `web/src/styles/tokens.css`），在 SYNC.md D2 写清并加字符级比对测试——
+  每个项目不一样，flow 只留位置、不做通用实现
 
 ## `.claude/flow.json`
 
@@ -82,7 +95,8 @@ session）、**停点只有 5 处**（其余由 review agent 代拍板）、**�
   ],
   "json_dup_key_check": [                           // JSON 合法 + 同一对象内不许新增重复键
     { "glob": "*/web/src/i18n/locales/*.json", "known": ["历史遗留的重复键"] }
-  ]
+  ],
+  "design": { "dir": "design-system" }              // 设计模块；有它 /flow:sync 才管 SYNC.md
 }
 ```
 

@@ -252,6 +252,53 @@ echo "# Conductor default workflow" >"$J/conductor/workflow.md"
 "$S/init-project.sh" finish "$J" >/dev/null 2>&1 && bad "workflow.md 被覆盖 → finish 失败" || ok "workflow.md 被覆盖 → finish 失败"
 [ -e "$J/.claude/flow.json" ] && bad "workflow.md 被覆盖 → 不写 flow.json" || ok "workflow.md 被覆盖 → 不写 flow.json"
 
+echo "design module"
+K="$TMP/designproj"
+mkdir -p "$K" && git -C "$K" init -q -b main && git -C "$K" config user.email t@t && git -C "$K" config user.name t
+echo x >"$K/README.md" && git -C "$K" add -A && git -C "$K" commit -qm init
+"$S/init-project.sh" seed "$K" >/dev/null 2>&1
+out=$("$S/init-project.sh" design "$K" 2>&1)
+[ -f "$K/design-system/README.md" ] && ok "design 生成 README 骨架" || bad "design 生成 README 骨架" "$out"
+grep -q 'flow:managed:begin' "$K/design-system/SYNC.md" 2>/dev/null && grep -q '^### D2 token 派生关系' "$K/design-system/SYNC.md" &&
+  ok "design 生成托管 SYNC.md + 项目补充 D1–D3" || bad "design 生成托管 SYNC.md + 项目补充 D1–D3" "$out"
+grep -qxF 'design-system/.project-id' "$K/.gitignore" && ok ".gitignore 忽略 .project-id" || bad ".gitignore 忽略 .project-id"
+case "$out" in *"待插入  CLAUDE.md 设计段"*) ok "提示插入 CLAUDE.md 设计段" ;; *) bad "提示插入 CLAUDE.md 设计段" "$out" ;; esac
+"$S/sync-managed.sh" --check --design design-system "$K" | grep -q '^最新    design-system/SYNC.md' && ok "--design 时 sync 管 SYNC.md" || bad "--design 时 sync 管 SYNC.md"
+# 模拟 conductor setup 完成 → finish 自动识别设计目录
+cp "$K/.conductor_templates/workflow.md" "$K/conductor/workflow.md"
+echo "# P" >"$K/conductor/product.md" && echo "# T" >"$K/conductor/tech-stack.md"
+printf '{"last_successful_step": "3.3_initial_track_generated"}\n' >"$K/conductor/setup_state.json"
+git -C "$K" add -A && git -C "$K" commit -qm "conductor(setup): Add conductor set up files"
+"$S/init-project.sh" finish "$K" >/dev/null 2>&1
+jq -e '.design.dir == "design-system" and (.worktree_links | index(".env") != null) and (.worktree_links | index("design-system/.project-id") != null)' \
+  "$K/.claude/flow.json" >/dev/null && ok "finish 自动登记 design.dir 与 .project-id 软链" || bad "finish 自动登记 design.dir" "$(cat "$K/.claude/flow.json")"
+"$S/sync-managed.sh" --check "$K" | grep -q 'design-system/SYNC.md' && ok "flow.json 有 design.dir 时 sync 自动管 SYNC.md" || bad "flow.json 有 design.dir 时 sync 自动管 SYNC.md"
+git -C "$K" add -A && git -C "$K" commit -qm "chore: adopt flow workflow"
+"$S/doctor.sh" "$K" >/dev/null 2>&1 && ok "带设计模块的接入 doctor 通过" || bad "带设计模块的接入 doctor 通过" "$("$S/doctor.sh" "$K" 2>&1 | grep '✗')"
+CLAUDE_PROJECT_DIR="$K" expect_exit "主干上写被 gitignore 的 .project-id → 放行" 0 guard-edit.sh "$(edit_json Write "$K/design-system/.project-id")"
+CLAUDE_PROJECT_DIR="$K" expect_exit "主干上改设计目录的受控文件 → 仍拦" 2 guard-edit.sh "$(edit_json Edit "$K/design-system/README.md")"
+CLAUDE_PROJECT_DIR="$K" expect_exit "gitignore 放行不绕过 protected_paths（.env）" 2 guard-edit.sh "$(edit_json Edit "$K/.env")"
+echo "uuid" >"$K/design-system/.project-id" && git -C "$K" add -f design-system/.project-id
+"$S/doctor.sh" "$K" >/dev/null 2>&1 && bad ".project-id 被提交 → doctor 不通过" || ok ".project-id 被提交 → doctor 不通过"
+git -C "$K" rm -q --cached design-system/.project-id
+# 托管区升级时保留 SYNC.md 的项目补充
+git -C "$K" checkout -q -b chore/sync
+printf '\n- 镜像：design-system/tokens.css → web/tokens.css（测试 web/tokens.test.js）\n' >>"$K/design-system/SYNC.md"
+sed -i.bak 's/flow:managed:begin v[0-9.]*/flow:managed:begin v0.0.1/; s/^## 0\. 一句话规矩/## 0. 旧/' "$K/design-system/SYNC.md" && rm -f "$K/design-system/SYNC.md.bak"
+out=$("$S/sync-managed.sh" "$K" 2>&1)
+case "$out" in *"已同步  design-system/SYNC.md (v0.0.1 → "*) ok "SYNC.md 托管区随插件升级" ;; *) bad "SYNC.md 托管区随插件升级" "$out" ;; esac
+grep -q 'web/tokens.test.js' "$K/design-system/SYNC.md" && grep -q '^## 0\. 一句话规矩' "$K/design-system/SYNC.md" &&
+  ok "SYNC.md 升级后项目补充原样保留" || bad "SYNC.md 升级后项目补充原样保留"
+git -C "$K" checkout -q main 2>/dev/null
+# E 路线：已接入但没开设计模块 → design 子命令直接登记 flow.json
+L="$TMP/adopted"
+mkdir -p "$L/.claude" && git -C "$L" init -q -b main
+jq '.worktree_links = [".env"]' "$S/../templates/flow.json" >"$L/.claude/flow.json"
+"$S/init-project.sh" design "$L" --dir ui-design >/dev/null 2>&1
+jq -e '.design.dir == "ui-design" and .worktree_links == [".env", "ui-design/.project-id"]' "$L/.claude/flow.json" >/dev/null &&
+  ok "已接入项目补设计模块：flow.json 登记 design.dir（自定义目录，不重复软链）" || bad "已接入项目补设计模块" "$(cat "$L/.claude/flow.json")"
+[ -f "$L/ui-design/SYNC.md" ] && ok "自定义设计目录生成 SYNC.md" || bad "自定义设计目录生成 SYNC.md"
+
 echo
 echo "passed: $pass  failed: $failn"
 [ "$failn" = 0 ]

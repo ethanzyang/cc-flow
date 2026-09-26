@@ -2,25 +2,32 @@
 # 把插件里的托管模板同步进项目。托管区夹在两行标记之间，整段覆盖；标记之外（如 workflow.md 文末
 # 「项目补充」）一字不动。目标文件不存在则新建（workflow.md 会附上项目补充骨架）。
 #
-# 用法：sync-managed.sh [--check] [--allow-main] [项目目录]
+# 用法：sync-managed.sh [--check] [--allow-main] [--design <目录>] [项目目录]
 #   --check       只报告，不写。有任一文件缺失/落后/无标记 → 退出码 1
 #   --allow-main  允许在主干上写（仅 /flow:init 首次接入时用；接入后改动一律走 worktree）
+#   --design <目录> 同时托管设计目录的 SYNC.md（缺省取 .claude/flow.json 的 design.dir）
 set -u
 . "$(dirname "$0")/lib.sh"
 
 check=0
 allow_main=0
 proj=""
-for a in "$@"; do
-  case "$a" in
-    --check) check=1 ;;
-    --allow-main) allow_main=1 ;;
-    -*) echo "unknown flag: $a" >&2; exit 64 ;;
-    *) proj="$a" ;;
+design=""
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --check) check=1; shift ;;
+    --allow-main) allow_main=1; shift ;;
+    --design) design="$2"; shift 2 ;;
+    -*) echo "unknown flag: $1" >&2; exit 64 ;;
+    *) proj="$1"; shift ;;
   esac
 done
 proj="${proj:-$FLOW_PROJECT}"
 proj=$(cd "$proj" && pwd) || exit 1
+# 设计模块：--design 优先，否则取 flow.json 的 design.dir
+if [ -z "$design" ] && [ -f "$proj/.claude/flow.json" ] && command -v jq >/dev/null 2>&1; then
+  design=$(jq -r '.design.dir // empty' "$proj/.claude/flow.json" 2>/dev/null)
+fi
 
 ver=$(flow_plugin_version)
 tpl_dir="$FLOW_ROOT/templates"
@@ -30,6 +37,10 @@ END_LINE='<!-- flow:managed:end -->'
 # 托管文件清单：模板|目标（相对项目根）|首次创建时追加的骨架（可空）
 MANAGED="workflow.md|conductor/workflow.md|workflow.project.md
 TEAM_GUIDE.md|dev-docs/TEAM_GUIDE.md|"
+if [ -n "$design" ]; then
+  MANAGED="$MANAGED
+design/SYNC.md|$design/SYNC.md|design/SYNC.project.md"
+fi
 
 if [ "$check" = 0 ] && [ "$allow_main" = 0 ] && [ -f "$proj/.claude/flow.json" ]; then
   main=$(FLOW_CFG="$proj/.claude/flow.json" flow_main_branch)

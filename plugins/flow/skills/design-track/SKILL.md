@@ -4,8 +4,8 @@ description: 把设计输入包（四件套）快照进 conductor track 并登�
 ---
 
 把设计输入包快照到 `conductor/tracks/<track>/design/` 并在 tracks.md 登记。**纯本地 git 操作**
-——不碰云端、不用 MCP、不依赖账号；设计稿从云端拉回仓库是设计者的前置责任（见 workflow.md P4
-指向的协作文档）。
+——不碰云端、不用 MCP、不依赖账号；设计稿从云端拉回仓库是前置步骤（`/flow:design-pull <feature>`，
+规矩见设计目录的 `SYNC.md` §4.1）。
 
 ## 输入
 

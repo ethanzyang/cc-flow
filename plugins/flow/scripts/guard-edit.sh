@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # PreToolUse(Edit|Write|MultiEdit|NotebookEdit)：把「靠自觉」的路径规则变成确定性拦截。
 #   1) 主 checkout 只读：本项目仓库里、当前分支是主干的文件一律拦——改动走 worktree。
-#      别的仓库、非 git 目录（如 ~/.claude 下的 memory）不管。
+#      别的仓库、非 git 目录（如 ~/.claude 下的 memory）、被 gitignore 的本地文件不管。
 #   2) conductor/tracks/*/design*/ 是只读立项快照（workflow §3.2）
 #   3) flow.json protected_paths：永远不许改
 #   4) flow.json no_full_rewrite：已存在的文件不许用 Write 整文件重写（只许 Edit 局部改）
@@ -23,7 +23,9 @@ file_root=$(flow_main_root "$d" 2>/dev/null || true)
 proj_root=$(flow_main_root "$FLOW_PROJECT" 2>/dev/null || true)
 if [ -n "$file_root" ] && [ "$file_root" = "$proj_root" ]; then
   branch=$(git -C "$d" rev-parse --abbrev-ref HEAD 2>/dev/null || true)
-  if [ "$branch" = "$main" ]; then
+  # 被 gitignore 的本地文件（如设计目录的 .project-id）不属于仓库改动，不受「只读」约束；
+  # 需要保护的本地文件（.env 等）由下面的 protected_paths 管。
+  if [ "$branch" = "$main" ] && ! git -C "$d" check-ignore -q "$f" 2>/dev/null; then
     flow_block "主 checkout 是只读基座（当前分支 ${main}）。请在 worktree 里改：EnterWorktree，或 git worktree add -b <branch> .claude/worktrees/<name> origin/$main"
   fi
 fi
