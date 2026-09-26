@@ -3,6 +3,21 @@
 版本号即 `plugins/flow/.claude-plugin/plugin.json` 的 `version`，也是各项目 `conductor/workflow.md`
 托管区标记里的版本。**不改 version 的提交，已安装的项目拿不到。**
 
+## 0.4.0 — 2026-09-26
+
+**设计包是 track 立项里的一个环节，不是 new-track 之外的入口**（0.3.0 把它写成了并列入口，判据也错成了「有没有设计稿」）。
+
+- `/flow:triage`：分诊卡加「设计输入」一行——判据是视觉不确定且不满足 §3.1 降级三条 → 设计包；满足降级 →
+  spec 内嵌结构（模式③）；UI 微调 → 现状截图（模式②）；纯后端 → 无。要设计包的再定时机：设计先行 / 行为先冻结
+- `/flow:design-track` 改成按状态走的设计环节：
+  - 阶段 A（还没有设计包）：核实约束设计的事实（或做已冻结 spec 的投影），写 BRIEF、预填业务规则进 DECISIONS，
+    推到用户的 Claude Design，停下交给用户画
+  - 阶段 B（四件套齐了）：拉回 → 校验与冲突检查 → 快照 → 新 track 接 new-track（复用已登记条目）/
+    `--track <id>` 挂到已有 track 并修订 spec（设计改版快照到 `design-r2/`）→ spec review
+  - 新 track 停在立项终点；已有 track 审过后继续 UI phase
+- `/flow:init`：conductor 提议的首个 track 若是「设计包 · 设计先行」，不在 setup 里生成 spec/plan，交给 design-track
+- workflow §2.1 / §3 / §3.2、TEAM_GUIDE、README、CLAUDE.md 设计段同步改写
+
 ## 0.3.0 — 2026-09-26
 
 收敛到核心使命：**人专注立项，立项做对后实现按 plan 自己跑，设计系统串在同一条线上**。skill 从 10 个减到 7 个。

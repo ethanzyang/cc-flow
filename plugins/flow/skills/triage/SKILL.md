@@ -33,6 +33,20 @@ description: 需求分诊——输出档位、车道、拆分判断与「做完�
 **新页面不等于 Lane A。** 三条同时满足就降级为 Lane B（workflow §3.1）：只用既有 token 与既有组件
 语法、无新交互模式、结构与文案能在 spec 里逐字给出。降级要在卡里写明理由。
 
+**设计输入**（有用户可见界面时必判，workflow §3.1 / §3.2）——它是 track 立项里的一个环节，不是另一个入口：
+
+| 情况 | 设计输入 | 验收 |
+|---|---|---|
+| 有新界面 / 新交互，且**不满足**上面的降级三条（视觉不确定） | **设计包**（四件套），由 `/flow:design-track` 在立项里出 | `/flow:visual-verify` 模式① |
+| 新页面，满足降级三条 | spec 内嵌「结构清单 + 逐字文案 + 状态」 | 模式③ |
+| 改既有界面的样式 / 布局（UI 微调） | 动手前截现状当 baseline | 模式② |
+| 纯后端 / 无界面变化 | 无 | — |
+
+要设计包时再定**时机**（workflow §2.2）：
+- **设计先行**（默认；行为一段话说得清，只是长什么样没定）：先出设计包，再出 spec/plan。
+- **行为先冻结**（行为或账务本身也要收敛）：一个 track 分 phase——行为 phase 在前，UI phase 之前再按
+  已冻结的行为出设计包挂到这个 track 上。
+
 ### 4. 拆分判断（workflow §2.3）
 
 只有需求明显含两块不同性质的工作时才考虑拆。**拆之前必须答**：
@@ -48,6 +62,7 @@ description: 需求分诊——输出档位、车道、拆分判断与「做完�
 需求：<一句话复述>
 档位：<一/二/三档> — <判据，一句话>
 车道：<A/B/C/D>（新页面降级理由：…）
+设计输入：<设计包（设计先行 ｜ 行为先冻结）｜ spec 内嵌结构 ｜ 现状截图 ｜ 无> — <一句理由>
 拆分：<不拆，分 N 个 phase ｜ 拆 2 段，同时立项，第一段交付 X>
 做完用户能用到什么：<一句话>
 本次流程：<入口命令 / 产物 / session 数 / review 次数 / 验收方式>
@@ -59,7 +74,13 @@ description: 需求分诊——输出档位、车道、拆分判断与「做完�
 ### 6. 执行
 
 - 一档 → `/flow:spec`
-- 二/三档 → `/conductor:new-track`；Lane A → `/flow:design-track <feature>`（它会拉设计包再接 new-track）
+- 二/三档 → 立项一个 track：
+  - 设计输入 = **设计包 · 设计先行** → 从 `/flow:design-track <feature>` 开始：它先把 BRIEF 推到用户的
+    Claude Design 让用户画；画完再跑一次，拉回设计包、快照进新 track，接着 new-track 出 spec/plan
+  - 设计输入 = **设计包 · 行为先冻结** → `/conductor:new-track` 先立行为；plan 里 UI phase 的第一个任务写成
+    「`/flow:design-track <feature> --track <本 track>`：按已冻结的行为出 BRIEF → 用户画 → 挂进本 track、
+    补验收标准」
+  - 其余 → `/conductor:new-track`（spec 内嵌结构 / 现状截图写进 spec 与验收）
 - Lane D → 直接修（复现测试 → 修 → 回归）
 
 二/三档立项不是 new-track 生成完就结束，要走到 **workflow §3.3 立项终点**：spec/plan 生成后派

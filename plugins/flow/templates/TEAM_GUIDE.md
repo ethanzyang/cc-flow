@@ -23,7 +23,7 @@
 | | 一档 小明确 | 二档 中等 | 三档 高风险 |
 |---|---|---|---|
 | 判据 | 无敏感域 + ≤2 层 + schema 至多纯新增 + 一句话说得清 | 跨 ≥2 层或多 phase | 敏感域 / 改既有表列 / 改已上线口径 / 跨仓契约 / 视觉不确定 |
-| 入口 | `/flow:spec` 或直接修 | `/conductor:new-track` | new-track（Lane A 先设计 → `/flow:design-track`） |
+| 入口 | `/flow:spec` 或直接修 | `/conductor:new-track` | `/conductor:new-track`；要设计包的在立项里加 `/flow:design-track` |
 | session | 1 | 1（`/clear` 分隔） | 立项与实现**分 session** |
 | review | PR 前 1 次 | spec 1 次 + 每个行为 phase 1 次 | spec 2 镜头 + plan + 每 phase 2 镜头 |
 
@@ -75,19 +75,26 @@
 > ⚠ 这个 Phase 0 **要走 review gate**——它写的是测试代码，是重构唯一的安全网。别和
 > 「存档失败基线」那种记账 Phase 0 混为一谈（workflow §5）。
 
-### Lane A — 视觉不确定
+### 需要设计包的 track（视觉不确定）
+
+设计包不是另一个入口，而是 **track 立项里的一个环节**。分诊卡的「设计输入」一行会写明要不要、什么时机：
 
 ```
-① 设计    /flow:design push 同步最新版，在自己的 Claude Design 副本里画（feature 文件夹名 = 仓库目录名）
-② 立项    /flow:design-track <feature>  ← 拉回设计包、校验四件套、快照进 track、接着 new-track 出
-                                          spec/plan（INVENTORY 全部进验收标准）、spec review，停在立项终点
-③ 实现    /conductor:implement，TDD 照常
-④ 验收    每个行为 phase：review agent + /flow:visual-verify 模式①（needs_work 阻断）
-⑤ 收尾    /flow:closeout；token/组件演化必须已在同一 PR 落回设计真相源；合并后各人 /flow:design push
+设计先行（默认）
+① BRIEF   /flow:design-track <feature>  ← 核实约束设计的事实，写 BRIEF + 预填业务规则，推到你的 Claude Design
+② 设计    你在 Claude Design 的 <feature>/ 里按 BRIEF 画：补 SPEC / INVENTORY / DECISIONS + 高保真稿
+③ 立项    再跑 /flow:design-track <feature>  ← 拉回、快照进新 track、new-track 出 spec/plan
+                                              （INVENTORY 全部进验收标准）、spec review，停在立项终点
+④ 实现    /conductor:implement；UI phase 过 review agent + /flow:visual-verify 模式①（needs_work 阻断）
+⑤ 收尾    /flow:closeout；token/组件演化已在同一 PR 落回设计真相源；合并后各人 /flow:design push
+
+行为先冻结（行为或账务本身也要收敛）
+   /conductor:new-track 先立行为 → 实现行为 phase → UI phase 前 /flow:design-track <feature> --track <id>
+   （按已冻结的 spec 投影写 BRIEF → 你画 → 拉回挂进本 track、修订 spec）→ 继续 UI phase
 ```
 
-**四件套** = BRIEF / SPEC / INVENTORY / DECISIONS（+ tokens.css + 高保真稿）。缺一件
-`/flow:design-track` 会拒绝立项。实现中发现功能与设计冲突：**停下列清单等拍板**，不得自行取舍。
+**四件套** = BRIEF / SPEC / INVENTORY / DECISIONS（+ tokens.css + 高保真稿），缺一件不接进立项。
+设计与已定的业务规则冲突、或实现中发现功能与设计冲突：**停下列清单等拍板**，不得自行取舍。
 
 ---
 
@@ -140,7 +147,7 @@
 | `/flow:spec` | 一档全流程：≤3 问 → 一页规格 → 实现 → PR | 小而明确的需求 |
 | `/conductor:new-track` | 二/三档立项：spec + plan | 跨层 / 多 phase / 高风险 |
 | `/conductor:implement` | 按 plan 执行 | 立项之后（三档要新 session） |
-| `/flow:design-track` | Lane A 立项一条龙：拉设计包 → 快照 → new-track → spec review | 有设计稿的 UI 功能 |
+| `/flow:design-track` | 立项里的设计环节：第一次写 BRIEF 推给你画，第二次拉回接进 track（`--track` 挂到已有 track） | 分诊判定要设计包时 |
 | `/flow:design push` / `pull` | 仓库设计系统 ⇄ 自己的 Claude Design 副本（首次 push 会建项目） | 开画前 push；改了已有设计文件当天 pull |
 | `/flow:visual-verify` | 截图矩阵验收（①对设计稿 ②对现状 ③对 spec 清单） | UI phase gate |
 | `/flow:closeout` | 合并后收尾三连 + 记账 + `blocked_by` 后继确认 | PR 合并后立刻 |

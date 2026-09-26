@@ -46,7 +46,7 @@
 | | **一档 小明确** | **二档 中等** | **三档 高风险** |
 |---|---|---|---|
 | 判据 | 无敏感域；≤2 层（层划分见 P2）；schema 至多纯新增；行为一段话说得清；无视觉不确定 | 跨 ≥2 层或需要多 phase；新页面可按 §3.1 降级；无敏感域；schema 至多纯新增 | 敏感域（P1）、改既有表列、改已上线口径、跨仓契约、或视觉不确定（Lane A） |
-| 入口 | `/flow:spec` 或直接修（Lane D） | `/conductor:new-track`（Lane B/C） | `/conductor:new-track`，或设计 → `/flow:design-track` → new-track（Lane A） |
+| 入口 | `/flow:spec` 或直接修（Lane D） | `/conductor:new-track`（Lane B/C） | `/conductor:new-track`；需要设计包的，立项里加设计环节 `/flow:design-track`（§3.2） |
 | 产物 | `docs/specs/<x>.md` 一页 + 测试 + PR | spec（≤400 行）+ plan（≤3 phase）+ 基线指针 + 截图 | 全套：spec + plan + baseline + HANDOFF（含 canary）+ `phase<N>-verify/REPORT.md`（Lane A 另加 design/ 四件套） |
 | session | 1 | 1（立项 + 实现，`/clear` 分隔；先输出 §3.3 三行交接并得到「继续」） | 立项与实现**分 session** |
 | review | PR 前 1 次 code review agent（bug + AC 缺口） | spec 1 镜头；每个**行为** phase 1 次；记账/登记 phase 不审 | spec 2 镜头循环至 PASS（≤3 轮）；plan 1 镜头；每个行为 phase 2 镜头；Lane A 加 `/flow:visual-verify` |
@@ -118,10 +118,13 @@
 ## §3 Track 生命周期
 
 ```
-[Lane A] /flow:design push → 在自己的 Claude Design 副本里画（feature 文件夹）
-       → /flow:design-track <feature>：拉回设计包 + 快照入仓 + /conductor:new-track + spec review → §3.3 立项终点
-       → /conductor:implement → phase gate（review agent + /flow:visual-verify）→ §6 收尾
-[Lane B/C] spec 先行 → /conductor:new-track → 同上（无设计输入，或 §3.1 降级形态）
+立项（二/三档，一个 track）：
+  无设计包（§3.1 降级 / 微调 / 纯后端）→ /conductor:new-track → spec review → §3.3 立项终点
+  设计先行 → /flow:design-track <feature>（写 BRIEF 推给用户）→ 用户在 Claude Design 画
+           → /flow:design-track <feature>（拉回 + 快照进新 track + new-track + spec review）→ §3.3 立项终点
+  行为先冻结 → /conductor:new-track 立行为 → … → UI phase 前 /flow:design-track <feature> --track <id>
+           （按已冻结的行为写 BRIEF → 用户画 → 拉回挂进本 track、修订 spec）→ 继续 UI phase
+实现：/conductor:implement → phase gate（review agent + /flow:visual-verify）→ §6 收尾
 ```
 
 ### 3.1 设计输入的适用与降级
@@ -143,10 +146,15 @@ track 含**视觉不确定**的 UI → Lane A 全量四件套（§3.2）。其�
   token 派生关系一律见该目录的 `SYNC.md`，本文件不重复；同步用 `/flow:design push` /
   `/flow:design pull`。P4 为「无」的项目：四件套直接写在一个临时目录，用
   `/flow:design-track --from <dir>` 快照（要长期用设计系统就 `/flow:init` 补设计模块）。
+- **设计包是 track 立项里的一个环节**，不是 new-track 之外的入口；由 `/flow:design-track` 跑两次：
+  第一次写 BRIEF 推到用户的 Claude Design 让用户画，第二次把画好的包拉回、快照进 track。
+- **设计先行**时 BRIEF 从需求出发，写明**已核实的事实与硬约束**（后端已有的接口与字段、支付 / 权限等
+  限制、真实示例数据），标注「设计只能在其中取舍」。
 - **行为已先冻结时的设计输入**（同一 track 的前序 phase，或按 §2.3 拆出的前一段 track）：把已冻结
   的行为做成 **spec 投影**当 BRIEF「输入材料表」——页面/模块清单、字段清单 + 真实示例数据、状态
-  矩阵、交互规则、硬约束与「明确不设计」清单；交给设计者。已冻结的业务规则预填进 DECISIONS，
-  设计阶段只收敛「长什么样」；稿子与规则冲突 → 停下列清单等拍板（§0 停点 3）。
+  矩阵、交互规则、硬约束与「明确不设计」清单；交给设计者（`/flow:design-track <feature> --track <id>`）。
+  已冻结的业务规则预填进 DECISIONS，设计阶段只收敛「长什么样」；稿子与规则冲突 → 停下列清单等拍板
+  （§0 停点 3）。
 - **四件套**（缺一不立项，`/flow:design-track` 强制校验）：
   - `BRIEF.md` — 背景 + 输入材料表 + 实现约束 + 审计标准
   - `SPEC.md` — 完整设计规格

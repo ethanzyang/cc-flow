@@ -7,7 +7,8 @@
 ```
 新需求 → /flow:triage ─┬─ 一档 → /flow:spec（一页规格，一个 session 做完）
                        ├─ 二/三档 → /conductor:new-track → spec review → 立项终点
-                       └─ Lane A（视觉未定）→ /flow:design-track（拉设计包 → new-track → spec review）
+                       └─ 要设计包（视觉未定）→ /flow:design-track 写 BRIEF → 你在 Claude Design 画
+                                              → 再跑 /flow:design-track：拉回 → 快照进 track → new-track → spec review
        立项之后 → /conductor:implement（phase gate：review agent + /flow:visual-verify）→ PR → /flow:closeout
 ```
 
@@ -51,7 +52,7 @@
 |---|---|
 | `/flow:triage` | 分诊卡：档位 + 车道 + 拆分判断 + 「做完用户能用到什么」，把需求送进对的立项入口 |
 | `/flow:spec` | 一档全流程：≤3 问 → 一页 DELTA 规格 → TDD → review → PR |
-| `/flow:design-track` | Lane A 立项一条龙：从 Claude Design 拉设计包 → 快照 → new-track → spec review |
+| `/flow:design-track` | 立项里的设计环节：写 BRIEF 推给你画 → 画完拉回、快照进 track（新建或 `--track` 挂到已有）、出/补 spec、review |
 | `/flow:visual-verify` | 截图矩阵验收（对设计稿 / 对现状 / 对 spec 清单） |
 | `/flow:closeout` | 合并后收尾三连 + 记账 |
 | `/flow:design push` / `pull` | 仓库设计系统 ⇄ 自己的 Claude Design 副本；仅手动调用 |
@@ -78,7 +79,8 @@
 - `design-system/` 是设计唯一真相源，协作规范 `design-system/SYNC.md`（托管区 + 项目补充 D1–D3）
 - Claude Design 的设计系统项目是账号私有的，所以用 git 合流：每人 `/design-login` 后
   `/flow:design push` 建自己的云端副本；改了已有设计文件当天 `/flow:design pull` 拉回开 PR
-- Lane A：在云端按 feature 文件夹画完 → `/flow:design-track <feature>`（设计包 + spec/plan 同一个立项 PR）
+- 要设计包的 track：`/flow:design-track <feature>` 先写 BRIEF 推给你 → 你在 Claude Design 画 → 再跑一次拉回并接进立项
+  （设计先行：新 track，设计包 + spec/plan 同一个立项 PR；行为先冻结：`--track <id>` 挂到已有 track）
 - CLAUDE.md 设计段声明「美学方向归设计系统」：有设计输入时 frontend-design 等 skill 的自由发挥条款失效
 - 实现侧镜像 token 的（如 `web/src/styles/tokens.css`），在 SYNC.md D2 写清并加字符级比对测试——
   每个项目不一样，flow 只留位置、不做通用实现

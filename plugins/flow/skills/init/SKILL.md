@@ -83,9 +83,12 @@ workflow.md §7 已声明 conductor 与 flow 冲突时以 flow 为准）：
    是它自带模板，flow 已定：不设覆盖率阈值、任务勾选与代码同一提交 + phase 末一次记账、不用
    git notes。按它的第 1 步从 `.conductor_templates/workflow.md` 拷到 `conductor/workflow.md`
    （内容相同），写 state `2.5_workflow`，继续。
-5. **3.2 提议首个 track**：在提议里附上 flow 分诊（档位 / 车道，workflow §2，按 §2.3 判断拆不拆）。
+5. **3.2 提议首个 track**：在提议里附上 flow 分诊（档位 / 车道 / 设计输入，按 `/flow:triage` 的判据）。
    brownfield 且用户没有明确的下一件事 → 允许「暂不建 track」：写 state
-   `3.3_initial_track_generated`，直接到 3.4。
+   `3.3_initial_track_generated`，直接到 3.4。首个 track 判为「设计包 · 设计先行」→ 同样不在这里生成
+   spec/plan（设计还没画）：写 state 后到 3.4，汇报里写明「首个 track 从 `/flow:design-track <feature>` 开始」
+   （需要设计模块，第 4 步会问）；「设计包 · 行为先冻结」→ 照常生成，plan 的 UI phase 第一个任务写成
+   `/flow:design-track <feature> --track <本 track>`。
 6. **3.3**：`conductor/tracks.md` 已存在时**不要重建**，按 workflow §7 格式在末尾追加（前置 `---`）。
    生成 spec / plan 之后：spec ≤400 行；plan 按 `conductor/workflow.md`（已是 flow 规则）；
    然后派 `flow:spec-reviewer` 审，finding 直接修，≤3 轮（workflow §3.3）。
