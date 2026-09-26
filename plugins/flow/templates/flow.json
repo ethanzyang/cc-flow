@@ -1,0 +1,15 @@
+{
+  "version": 1,
+  "main_branch": "main",
+  "worktree_links": [".env"],
+  "protected_paths": [
+    { "glob": "*/.env", "reason": ".env 禁止修改（由用户手动维护）。" },
+    { "glob": "*/.env.local", "reason": ".env.local 禁止修改（由用户手动维护）。" },
+    { "glob": "*/.env.production", "reason": ".env.production 禁止修改（由用户手动维护）。" },
+    { "glob": "*/.github/workflows/*", "reason": "CI 配置禁止修改，确需变更请先与用户确认。" }
+  ],
+  "no_full_rewrite": [],
+  "sensitive_paths": [],
+  "format_on_edit": [],
+  "json_dup_key_check": []
+}
