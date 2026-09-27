@@ -3,6 +3,20 @@
 版本号即 `plugins/flow/.claude-plugin/plugin.json` 的 `version`，也是各项目 `conductor/workflow.md`
 托管区标记里的版本。**不改 version 的提交，已安装的项目拿不到。**
 
+## 0.4.1 — 2026-09-28
+
+**guard-bash 不再误拦只读和正常的 git 命令。**之前只要命令里出现 `>`，同时 `conductor/tracks/` 后面任意位置
+带 design 字样就拦。而 `2>/dev/null`、`2>&1`、commit 尾注 `<noreply@…>` 里都有 `>`，于是读快照、`git add`
+快照、提 PR、改 `design-input.md` 旁边的 plan.md 全被当成「写 design 快照」拦下，`/flow:design-track`
+自己提交快照这一步也会撞上。
+
+- 改成只判断**写入目标**：重定向目标、tee/sponge 的参数、dd 的 `of=`、sed -i 的参数；相对路径按命令里的
+  `cd` 目录补全后再判断
+- 快照路径严格按 `conductor/tracks/<id>/design*/…` 判：track 目录下的 `design-input.md`、名字里带
+  design 的 track 都不算快照
+- `no_full_rewrite` 也改成按写入目标判断，`cat x.json 2>&1` 之类的读命令不再被拦
+- 残余缺口：用变量展开写出的路径（`> "$f"`）认不出
+
 ## 0.4.0 — 2026-09-26
 
 **设计包是 track 立项里的一个环节，不是 new-track 之外的入口**（0.3.0 把它写成了并列入口，判据也错成了「有没有设计稿」）。
