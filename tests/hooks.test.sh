@@ -70,9 +70,10 @@ expect_exit "主 checkout 上改文件 → 拦" 2 guard-edit.sh "$(edit_json Edi
 expect_exit "worktree 里改文件 → 放行" 0 guard-edit.sh "$(edit_json Edit "$W/src/a.go")"
 expect_exit "别的仓库在 main 上 → 不管" 0 guard-edit.sh "$(edit_json Edit "$O/a.go")"
 expect_exit "非 git 目录 → 不管" 0 guard-edit.sh "$(edit_json Write "$TMP/loose/memo.md")"
-expect_exit "design 历史快照：新建 → 放行" 0 guard-edit.sh "$(edit_json Write "$W/conductor/tracks/t_20260101/design/BRIEF.md")"
+expect_exit "design 立项快照：新建 → 放行" 0 guard-edit.sh "$(edit_json Write "$W/conductor/tracks/t_20260101/design/BRIEF.md")"
 mkdir -p "$W/conductor/tracks/t_20260101/design" && echo x >"$W/conductor/tracks/t_20260101/design/BRIEF.md"
-expect_exit "design 历史快照：回改已有文件 → 拦" 2 guard-edit.sh "$(edit_json Edit "$W/conductor/tracks/t_20260101/design/BRIEF.md")"
+expect_exit "design 立项快照：回改已有文件 → 拦" 2 guard-edit.sh "$(edit_json Edit "$W/conductor/tracks/t_20260101/design/BRIEF.md")"
+expect_out "design 立项快照：拦截理由指向 §3.2 与 /flow:design-track" guard-edit.sh "$(edit_json Edit "$W/conductor/tracks/t_20260101/design/BRIEF.md")" "只读立项快照（workflow §3.2）；要改设计请改设计真相源再重新 /flow:design-track"
 expect_exit "track 名含 design 但不是快照目录 → 放行" 0 guard-edit.sh "$(edit_json Edit "$W/conductor/tracks/redesign_20260101/spec.md")"
 expect_exit "protected_paths → 拦" 2 guard-edit.sh "$(edit_json Edit "$W/.env")"
 cp "$P/web/i18n/en.json" "$W/web/i18n/en.json" 2>/dev/null || true
@@ -152,8 +153,18 @@ CLAUDE_PROJECT_DIR="$N" gb "未启用 flow → rm -rf ~ 也放行" 0 "$N" 'rm -r
 rm -r -f "$W/conductor/tracks/t"
 
 echo "post-edit"
-printf '# Project Tracks\n\n## [planned] Track: a\n' >"$W/conductor/tracks.md"
-expect_exit "tracks.md 不再校验（0.5 起不维护 track）→ 通过" 0 post-edit.sh "$(edit_json Edit "$W/conductor/tracks.md")"
+printf '# Project Tracks\n\n---\n\n## [ ] Track: a\n\n---\n\n## [~] Track: b\n\n---\n\n## [x] Track: c\n' >"$W/conductor/tracks.md"
+expect_exit "tracks.md 合法（[ ]/[~]/[x]，每节前一个 ---）→ 通过" 0 post-edit.sh "$(edit_json Edit "$W/conductor/tracks.md")"
+printf '# Project Tracks\n\nThis file tracks all major tracks.\n' >"$W/conductor/tracks.md"
+expect_exit "tracks.md 空登记（模板原样）→ 通过" 0 post-edit.sh "$(edit_json Edit "$W/conductor/tracks.md")"
+printf '# Project Tracks\n\n---\n\n## [ ] Track: a\n\n## [x] Track: b\n' >"$W/conductor/tracks.md"
+expect_exit "tracks.md 缺分隔符 → 报错" 2 post-edit.sh "$(edit_json Edit "$W/conductor/tracks.md")"
+expect_out "tracks.md 缺分隔符 → 理由指向 workflow §7.2" post-edit.sh "$(edit_json Edit "$W/conductor/tracks.md")" "workflow §7.2"
+printf '# Project Tracks\n\n---\n\n## [planned] Track: a\n' >"$W/conductor/tracks.md"
+expect_exit "tracks.md 非法状态标记 → 报错" 2 post-edit.sh "$(edit_json Edit "$W/conductor/tracks.md")"
+mkdir -p "$W/docs" && printf '## [planned] a\n\n## b\n' >"$W/docs/tracks.md"
+expect_exit "别处的 tracks.md 不校验 → 通过" 0 post-edit.sh "$(edit_json Edit "$W/docs/tracks.md")"
+printf '# Project Tracks\n' >"$W/conductor/tracks.md"
 printf '{"a":1,"a":2}\n' >"$W/web/i18n/en.json"
 expect_exit "JSON 新增重复键 → 报错" 2 post-edit.sh "$(edit_json Edit "$W/web/i18n/en.json")"
 printf '{"legacy":1,"legacy":2,"b":{"a":1},"a":1}\n' >"$W/web/i18n/en.json"
@@ -164,7 +175,9 @@ echo start >"$W/a.fmt"
 printf '%s' "$(edit_json Edit "$W/a.fmt")" | "$S/post-edit.sh" >/dev/null 2>&1
 if grep -q formatted "$W/a.fmt"; then ok "format_on_edit 命中 glob 时执行命令"; else bad "format_on_edit 命中 glob 时执行命令"; fi
 mkdir -p "$W/billing" && echo x >"$W/billing/rate.go"
-expect_out "单向门提醒路径 → 注入 additionalContext" post-edit.sh "$(edit_json Edit "$W/billing/rate.go")" 单向门
+out=$(printf '%s' "$(edit_json Edit "$W/billing/rate.go")" | "$S/post-edit.sh" 2>&1)
+case "$out" in *additionalContext*单向门*"三档"*"§4.5"*"由用户合并"*) ok "单向门提醒路径 → 注入 additionalContext（三档口径）" ;; *) bad "单向门提醒路径 → 注入 additionalContext（三档口径）" "$out" ;; esac
+case "$out" in *risk-reviewer*|*security-reviewer*) bad "单向门提醒不再提 0.5 的 risk / security 审阅" "$out" ;; *) ok "单向门提醒不再提 0.5 的 risk / security 审阅" ;; esac
 out=$(printf '%s' "$(edit_json Edit "$W/billing/rate.go")" | "$S/post-edit.sh" 2>&1)
 if [ -z "$out" ]; then ok "单向门提醒同 session 只提醒一次"; else bad "单向门提醒同 session 只提醒一次" "$out"; fi
 rm -f "${TMPDIR:-/tmp}/flow-sensitive-t1"
@@ -181,9 +194,10 @@ out=$(CLAUDE_PROJECT_DIR="$P" "$S/sync-managed.sh" --allow-main "$P" 2>&1)
 case "$out" in *"已创建  conductor/workflow.md"*"已创建  dev-docs/TEAM_GUIDE.md"*) ok "首次 sync 创建两个托管文件" ;; *) bad "首次 sync 创建两个托管文件" "$out" ;; esac
 grep -q '^# 项目补充' "$P/conductor/workflow.md" && ok "workflow.md 带项目补充骨架" || bad "workflow.md 带项目补充骨架"
 "$S/sync-managed.sh" --check "$P" >/dev/null 2>&1 && ok "--check：最新 → 退出 0" || bad "--check：最新 → 退出 0"
-# 模拟：项目补充里写了东西 + 托管区是旧版本
+# 模拟：项目补充里写了东西 + 托管区是旧版本（改掉模板里 §0 的标题，看 sync 能否恢复）
+H0=$(grep -m1 '^## §0' "$CLAUDE_PLUGIN_ROOT/templates/workflow.md")
 printf '\n- 自定义规则 XYZ\n' >>"$P/conductor/workflow.md"
-sed -i.bak 's/flow:managed:begin v[0-9.]*/flow:managed:begin v0.0.1/; s/^## §0 三条原则.*/## §0 旧标题/' "$P/conductor/workflow.md" && rm -f "$P/conductor/workflow.md.bak"
+sed -i.bak 's/flow:managed:begin v[0-9.]*/flow:managed:begin v0.0.1/; s/^## §0 .*/## §0 旧标题/' "$P/conductor/workflow.md" && rm -f "$P/conductor/workflow.md.bak"
 "$S/sync-managed.sh" --check "$P" >/dev/null 2>&1 && bad "--check：落后 → 退出 1" || ok "--check：落后 → 退出 1"
 git -C "$P" add -A && git -C "$P" commit -qm sync
 out=$("$S/sync-managed.sh" "$P" 2>&1)
@@ -192,7 +206,7 @@ git -C "$P" checkout -q -b chore/sync
 out=$("$S/sync-managed.sh" "$P" 2>&1)
 case "$out" in *"已同步  conductor/workflow.md (v0.0.1 → "*) ok "分支上 sync 覆盖托管区" ;; *) bad "分支上 sync 覆盖托管区" "$out" ;; esac
 grep -q '自定义规则 XYZ' "$P/conductor/workflow.md" && ok "项目补充原样保留" || bad "项目补充原样保留"
-grep -q '^## §0 三条原则' "$P/conductor/workflow.md" && ok "托管区内容已恢复为模板" || bad "托管区内容已恢复为模板"
+[ -n "$H0" ] && grep -qxF "$H0" "$P/conductor/workflow.md" && ok "托管区内容已恢复为模板" || bad "托管区内容已恢复为模板" "$H0"
 [ "$(grep -c 'flow:managed:begin' "$P/conductor/workflow.md")" = 1 ] && ok "托管标记仍只有一组" || bad "托管标记仍只有一组"
 echo '# 手写的 workflow' >"$N/wf.md"
 mkdir -p "$N/conductor" && cp "$N/wf.md" "$N/conductor/workflow.md"
@@ -203,7 +217,9 @@ git -C "$P" checkout -q main
 
 echo "session-start / stop"
 expect_out "SessionStart 注入 flow 上下文" session-start.sh "$(jq -nc --arg c "$P" '{cwd:$c}')" "本仓库启用 flow 工作流"
-expect_out "SessionStart 指向 /flow:shape" session-start.sh "$(jq -nc --arg c "$P" '{cwd:$c}')" "/flow:shape"
+out=$(printf '%s' "$(jq -nc --arg c "$P" '{cwd:$c}')" | "$S/session-start.sh" 2>&1)
+case "$out" in *"conductor 为底座"*"/flow:triage"*"/flow:spec"*"/conductor:new-track"*"/conductor:implement"*"/flow:closeout"*) ok "SessionStart 指向 0.6 入口（triage / spec / conductor track / closeout）" ;; *) bad "SessionStart 指向 0.6 入口" "$out" ;; esac
+case "$out" in *"/flow:shape"*|*"/flow:build"*) bad "SessionStart 不再提 0.5 的 /flow:shape / build" "$out" ;; *) ok "SessionStart 不再提 0.5 的 /flow:shape / build" ;; esac
 sed -i.bak 's/flow:managed:begin v[0-9.]*/flow:managed:begin v0.0.1/' "$P/conductor/workflow.md" && rm -f "$P/conductor/workflow.md.bak"
 expect_out "托管区落后 → 提示 /flow:init" session-start.sh "$(jq -nc --arg c "$P" '{cwd:$c}')" "/flow:init"
 git -C "$P" checkout -q -- conductor/workflow.md 2>/dev/null || true
@@ -214,7 +230,7 @@ expect_out "主 checkout 脏 → Stop 提醒" stop-hygiene.sh "$(jq -nc --arg c 
 rm -f "$P/dirty.txt"
 git -C "$W" commit -q --allow-empty -m wip
 git -C "$P" merge -q --no-edit feat/x
-expect_out "已合并未删的 worktree → Stop 提醒 closeout" stop-hygiene.sh "$(jq -nc --arg c "$P" '{cwd:$c}')" "/flow:closeout"
+expect_out "已合并未删的 worktree → Stop 提醒 closeout" stop-hygiene.sh "$(jq -nc --arg c "$P" '{cwd:$c}')" "workflow §7.1 收尾，跑 /flow:closeout"
 # squash 合并：分支不是主干祖先，但远端分支已删（upstream [gone]）→ 也要提醒
 R="$TMP/remote.git"
 git init -q --bare "$R"
@@ -246,7 +262,16 @@ Bn="$TMP/brown"
 mkdir -p "$Bn" && git -C "$Bn" init -q -b trunk && echo 'module x' >"$Bn/go.mod"
 [ "$(st "$Bn" maturity)" = brownfield ] && ok "有 go.mod → brownfield" || bad "有 go.mod → brownfield"
 [ "$(st "$Bn" main)" = trunk ] && ok "未提交仓库的主干取 HEAD 指向（trunk）" || bad "未提交仓库的主干取 HEAD 指向" "$(st "$Bn" main)"
-[ -z "$("$S/init-project.sh" status "$Bn" 2>/dev/null | grep '^conductor=')" ] && ok "status 不再报 conductor 状态" || bad "status 不再报 conductor 状态"
+[ "$(st "$Bn" conductor)" = none ] && ok "没有 setup_state.json → conductor=none" || bad "没有 setup_state.json → conductor=none" "$(st "$Bn" conductor)"
+F="$TMP/seeded"
+mkdir -p "$F/conductor" && git -C "$F" init -q -b main && git -C "$F" config user.email t@t && git -C "$F" config user.name t
+printf '{"last_successful_step": "3.3_initial_track_generated"}\n' >"$F/conductor/setup_state.json"
+git -C "$F" add -A && git -C "$F" commit -qm "chore: adopt flow workflow"
+[ "$(st "$F" conductor)" = flow-seeded ] && ok "0.1.0 伪造的 setup 状态 → flow-seeded" || bad "0.1.0 伪造的 setup 状态 → flow-seeded" "$(st "$F" conductor)"
+git -C "$F" commit -q --allow-empty -m "conductor(setup): Add conductor set up files"
+[ "$(st "$F" conductor)" = real ] && ok "有 conductor(setup) 提交 → real" || bad "有 conductor(setup) 提交 → real"
+printf '{"last_successful_step": "2.3_tech_stack"}\n' >"$F/conductor/setup_state.json"
+[ "$(st "$F" conductor)" = "partial:2.3_tech_stack" ] && ok "没跑完 → partial:<step>" || bad "没跑完 → partial:<step>" "$(st "$F" conductor)"
 
 echo "init-project seed / finish / doctor"
 I="$TMP/newproj"
@@ -255,53 +280,120 @@ git -C "$I" config user.email t@t && git -C "$I" config user.name t
 echo '{"permissions":{"allow":["Bash(make:*)"],"deny":["Bash(git push --force:*)"]},"model":"x"}' >"$I/.claude/settings.json"
 printf 'node_modules/\n' >"$I/.gitignore"
 out=$("$S/init-project.sh" seed "$I" --allow 'Bash(go test:*)' 2>&1)
-for f in conductor/workflow.md dev-docs/TEAM_GUIDE.md CLAUDE.md; do
+for f in conductor/workflow.md dev-docs/TEAM_GUIDE.md conductor/backlog.md CLAUDE.md .conductor_templates/workflow.md; do
   [ -f "$I/$f" ] && ok "seed 生成 $f" || bad "seed 生成 $f" "$out"
 done
-for f in conductor/backlog.md conductor/tracks.md .conductor_templates .claude/flow.json; do
-  [ -e "$I/$f" ] && bad "seed 不生成 ${f}" || ok "seed 不生成 ${f}"
+for f in conductor/product.md conductor/tech-stack.md conductor/product-guidelines.md conductor/setup_state.json conductor/tracks.md .claude/flow.json; do
+  [ -e "$I/$f" ] && bad "seed 不生成 ${f}（留给 conductor / finish）" || ok "seed 不生成 ${f}（留给 conductor / finish）"
 done
-grep -q '/flow:shape' "$I/CLAUDE.md" && ok "CLAUDE.md 内联了 flow 段" || bad "CLAUDE.md 内联了 flow 段"
+cmp -s "$I/conductor/workflow.md" "$I/.conductor_templates/workflow.md" && ok ".conductor_templates/workflow.md 与 flow 规则同内容" || bad ".conductor_templates/workflow.md 与 flow 规则同内容"
+git -C "$I" status --porcelain | grep -q conductor_templates && bad ".conductor_templates/ 不进提交（本地排除）" || ok ".conductor_templates/ 不进提交（本地排除）"
+grep -q '.conductor_templates' "$I/.gitignore" && bad ".conductor_templates 不写进 .gitignore" || ok ".conductor_templates 不写进 .gitignore"
+grep -q '/flow:triage' "$I/conductor/backlog.md" && ok "backlog.md 指向 /flow:triage 开工" || bad "backlog.md 指向 /flow:triage 开工"
+case "$out" in *"下一步：跑 /conductor:setup"*"finish"*) ok "seed 的下一步是 /conductor:setup 再 finish" ;; *) bad "seed 的下一步是 /conductor:setup 再 finish" "$out" ;; esac
+grep -q '/flow:triage' "$I/CLAUDE.md" && ok "CLAUDE.md 内联了 flow 段" || bad "CLAUDE.md 内联了 flow 段"
 grep -q '^### P1 单向门清单' "$I/conductor/workflow.md" && grep -q '^### P2 上线' "$I/conductor/workflow.md" &&
-  ok "项目补充骨架是 0.5 结构（P1 单向门 / P2 上线）" || bad "项目补充骨架是 0.5 结构"
+  ok "项目补充骨架沿用 0.5 结构（P1 单向门 / P2 上线）" || bad "项目补充骨架沿用 0.5 结构"
 grep -q '{{FLOW_SECTION}}\|{{MAIN}}' "$I/CLAUDE.md" && bad "CLAUDE.md 不残留 FLOW_SECTION/MAIN 占位符" || ok "CLAUDE.md 不残留 FLOW_SECTION/MAIN 占位符"
 jq -e '.model == "x" and (.permissions.allow | index("Bash(make:*)") == 0) and (.permissions.allow | index("Bash(go test:*)") != null)
   and ([.permissions.deny[] | select(. == "Bash(git push --force:*)")] | length == 1)
-  and .enabledPlugins["flow@cc-flow"] and (.enabledPlugins["conductor@conductor-cc"] == null)
-  and .extraKnownMarketplaces["cc-flow"].source.repo == "ethanzyang/cc-flow"' \
-  "$I/.claude/settings.json" >/dev/null && ok "settings 合并：保留已有键、保序去重、加插件" || bad "settings 合并" "$(cat "$I/.claude/settings.json")"
+  and .enabledPlugins["flow@cc-flow"] and .enabledPlugins["conductor@conductor-cc"]
+  and .extraKnownMarketplaces["cc-flow"].source.repo == "ethanzyang/cc-flow"
+  and (.extraKnownMarketplaces["conductor-cc"].source.url | test("conductor_cc"))' \
+  "$I/.claude/settings.json" >/dev/null && ok "settings 合并：保留已有键、保序去重、加 flow + conductor 插件" || bad "settings 合并" "$(cat "$I/.claude/settings.json")"
 grep -qxF '.claude/worktrees/' "$I/.gitignore" && grep -qxF 'node_modules/' "$I/.gitignore" && ok ".gitignore 追加且保留原内容" || bad ".gitignore 追加且保留原内容"
 "$S/init-project.sh" seed "$I" >/dev/null 2>&1
 [ "$(jq '.permissions.deny | length' "$I/.claude/settings.json")" = 6 ] && ok "重跑 seed settings 幂等（基线只拒读改 .env 与 CI，致命命令交给 Bash 守卫）" || bad "重跑 seed settings 幂等" "$(jq -c .permissions.deny "$I/.claude/settings.json")"
-"$S/doctor.sh" "$I" >/dev/null 2>&1 && bad "还没 finish → doctor 不通过" || ok "还没 finish → doctor 不通过"
-git -C "$I" add -A && git -C "$I" commit -qm "seed"
+out=$("$S/doctor.sh" "$I" 2>&1) && bad "conductor setup 没跑 → doctor 不通过" "$out" || ok "conductor setup 没跑 → doctor 不通过"
+case "$out" in *"✗ conductor/product.md 缺失"*"✗ 没跑过 conductor setup"*) ok "doctor 报 conductor 文档缺失与 setup 未跑" ;; *) bad "doctor 报 conductor 文档缺失与 setup 未跑" "$out" ;; esac
+case "$out" in *"✓ settings.json 启用 conductor@conductor-cc"*) ok "doctor 认出 conductor 插件已启用" ;; *) bad "doctor 认出 conductor 插件已启用" "$out" ;; esac
+
+# 模拟 conductor setup：2.5 从 .conductor_templates 拷 workflow，其余各节产出文档，3.4 提交（git add -A）
+cp "$I/.conductor_templates/workflow.md" "$I/conductor/workflow.md"
+echo "# Product Guide" >"$I/conductor/product.md"
+echo "# Technology Stack" >"$I/conductor/tech-stack.md"
+printf '{"last_successful_step": "3.3_initial_track_generated"}\n' >"$I/conductor/setup_state.json"
+git -C "$I" add -A && git -C "$I" commit -qm "conductor(setup): Add conductor set up files"
+git -C "$I" show --stat HEAD | grep -q conductor_templates && bad "conductor 的 git add -A 不会带上 .conductor_templates/" || ok "conductor 的 git add -A 不会带上 .conductor_templates/"
 
 RULES="$TMP/flow-rules.json"
 echo '{"sensitive_paths":["*/billing/*"],"protected_paths":[{"glob":"*/gen/*","reason":"生成文件。"}],"format_on_edit":[{"globs":["*.go"],"cmd":"gofmt -w \"$FILE\""}]}' >"$RULES"
 out=$("$S/init-project.sh" finish "$I" --rules "$RULES" 2>&1)
-[ -e "$I/conductor/tracks.md" ] && bad "finish 不再生成 tracks.md" "$out" || ok "finish 不再生成 tracks.md"
+[ -d "$I/.conductor_templates" ] && bad "finish 删掉 .conductor_templates/" "$out" || ok "finish 删掉 .conductor_templates/"
+[ -f "$I/conductor/tracks.md" ] && ok "没建首个 track → finish 补空 tracks.md" || bad "没建首个 track → finish 补空 tracks.md" "$out"
 jq -e '.main_branch == "main" and .sensitive_paths == ["*/billing/*"] and (.protected_paths | length == 5)
   and (.protected_paths | map(.glob) | index("*/.env") != null) and (.format_on_edit | length == 1)' "$I/.claude/flow.json" >/dev/null &&
   ok "flow.json = 模板默认项 + 规则（数组合并）" || bad "flow.json = 模板默认项 + 规则" "$(cat "$I/.claude/flow.json" 2>/dev/null)"
 out=$("$S/init-project.sh" finish "$I" --rules "$RULES" 2>&1)
 case "$out" in *"已存在  .claude/flow.json"*"--rules 未应用"*) ok "重跑 finish 不覆盖已有 flow.json" ;; *) bad "重跑 finish 不覆盖已有 flow.json" "$out" ;; esac
 "$S/doctor.sh" "$I" >/dev/null 2>&1 && ok "完整接入后 doctor 通过" || bad "完整接入后 doctor 通过" "$("$S/doctor.sh" "$I" 2>&1 | grep '✗')"
+cp "$I/.claude/flow.json" "$TMP/flow.json.good"
 echo '{"protected_paths": {"glob": "x"}}' >"$I/.claude/flow.json"
 "$S/doctor.sh" "$I" >/dev/null 2>&1 && bad "doctor 发现字段类型错误" || ok "doctor 发现字段类型错误"
+cp "$TMP/flow.json.good" "$I/.claude/flow.json"
 
 # 已有提交的项目：seed 在 worktree 里做，排除同样生效
-git -C "$I" checkout -q -- .claude/flow.json 2>/dev/null || true
 git -C "$I" add -A && git -C "$I" commit -qm "chore: adopt flow workflow"
 git -C "$I" worktree add -q -b redo "$I/.claude/worktrees/redo" main
 out=$("$S/init-project.sh" seed "$I/.claude/worktrees/redo" 2>&1)
-case "$out" in *"最新    conductor/workflow.md"*) ok "worktree 里重跑 seed：托管区已最新、不重复创建" ;; *) bad "worktree 里重跑 seed：托管区已最新" "$out" ;; esac
-[ -e "$I/.claude/worktrees/redo/.conductor_templates" ] && bad "worktree 里 seed 不放 .conductor_templates" || ok "worktree 里 seed 不放 .conductor_templates"
+case "$out" in *"最新    conductor/workflow.md"*"已存在  conductor/backlog.md"*) ok "worktree 里重跑 seed：托管区已最新、backlog 不覆盖" ;; *) bad "worktree 里重跑 seed：托管区已最新、backlog 不覆盖" "$out" ;; esac
+[ -f "$I/.claude/worktrees/redo/.conductor_templates/workflow.md" ] && ok "worktree 里 seed 放模板" || bad "worktree 里 seed 放模板"
+git -C "$I/.claude/worktrees/redo" status --porcelain | grep -q conductor_templates && bad "worktree 里 .conductor_templates/ 同样被排除" || ok "worktree 里 .conductor_templates/ 同样被排除"
 
-# workflow.md 被手写文件覆盖（丢了托管标记）→ finish 报异常且不激活
+# doctor 的 conductor / CLAUDE.md / 项目补充检查：在完整接入的 $I 上逐项改坏再复原（正例 + 反例）
+out=$("$S/doctor.sh" "$I" 2>&1)
+case "$out" in *"✓ conductor setup 已完整跑过"*"✓ settings.json 启用 conductor@conductor-cc"*"✓ CLAUDE.md 含 flow 段"*) ok "doctor：conductor setup / 插件 / CLAUDE.md flow 段全 ✓" ;; *) bad "doctor：conductor setup / 插件 / CLAUDE.md flow 段全 ✓" "$out" ;; esac
+case "$out" in *"0.4 结构"*) bad "0.6 骨架不报 0.4 结构" "$out" ;; *) ok "0.6 骨架不报 0.4 结构" ;; esac
+Ds="$I/.claude/settings.json"
+cp "$Ds" "$TMP/settings.bak"
+jq '.enabledPlugins["conductor@conductor-cc"] = false' "$TMP/settings.bak" >"$Ds"
+out=$("$S/doctor.sh" "$I" 2>&1) && bad "conductor 插件被显式关掉 → doctor 不通过" "$out" || ok "conductor 插件被显式关掉 → doctor 不通过"
+case "$out" in *"✗ settings.json 把 conductor@conductor-cc 关掉了"*) ok "doctor 指出 conductor 插件被关（✗）" ;; *) bad "doctor 指出 conductor 插件被关（✗）" "$out" ;; esac
+jq 'del(.enabledPlugins["conductor@conductor-cc"])' "$TMP/settings.bak" >"$Ds"
+out=$("$S/doctor.sh" "$I" 2>&1) && ok "没登记 conductor 插件 → 只提示，doctor 仍通过" || bad "没登记 conductor 插件 → 只提示，doctor 仍通过" "$out"
+case "$out" in *"△ settings.json 没启用 conductor@conductor-cc"*) ok "doctor 提示没登记 conductor 插件（△）" ;; *) bad "doctor 提示没登记 conductor 插件（△）" "$out" ;; esac
+cp "$TMP/settings.bak" "$Ds"
+mv "$I/conductor/tracks.md" "$TMP/tracks.bak"
+out=$("$S/doctor.sh" "$I" 2>&1) && bad "缺 tracks.md → doctor 不通过" "$out" || ok "缺 tracks.md → doctor 不通过"
+case "$out" in *"✗ conductor/tracks.md 缺失"*) ok "doctor 指出 tracks.md 缺失" ;; *) bad "doctor 指出 tracks.md 缺失" "$out" ;; esac
+mv "$TMP/tracks.bak" "$I/conductor/tracks.md"
+printf '{"last_successful_step": "2.3_tech_stack"}\n' >"$I/conductor/setup_state.json"
+out=$("$S/doctor.sh" "$I" 2>&1) && bad "conductor setup 没跑完 → doctor 不通过" "$out" || ok "conductor setup 没跑完 → doctor 不通过"
+case "$out" in *"✗ conductor setup 没跑完（partial:2.3_tech_stack）"*) ok "doctor 报 setup 停在哪一步" ;; *) bad "doctor 报 setup 停在哪一步" "$out" ;; esac
+git -C "$I" checkout -q -- conductor/setup_state.json
+printf '# X\n\n新需求先 `/flow:shape` 出定形卡\n' >"$I/CLAUDE.md"
+out=$("$S/doctor.sh" "$I" 2>&1)
+case "$out" in *"△ CLAUDE.md 还是 0.5 的 flow 段（定形 / build）：换成 templates/CLAUDE.flow-section.md"*) ok "doctor：0.5 的 CLAUDE.md flow 段 → △ 待替换" ;; *) bad "doctor：0.5 的 CLAUDE.md flow 段 → △ 待替换" "$out" ;; esac
+printf '# X\n' >"$I/CLAUDE.md"
+out=$("$S/doctor.sh" "$I" 2>&1)
+case "$out" in *"△ CLAUDE.md 没有 flow 段"*) ok "doctor：CLAUDE.md 没有 flow 段 → △" ;; *) bad "doctor：CLAUDE.md 没有 flow 段 → △" "$out" ;; esac
+git -C "$I" checkout -q -- CLAUDE.md
+printf '\n### P2 层划分\n\n- core / api / web\n' >>"$I/conductor/workflow.md"
+out=$("$S/doctor.sh" "$I" 2>&1)
+case "$out" in *"△ 项目补充还是 0.4 结构：P1 改单向门清单、P2 改上线，见 upgrade.md"*) ok "doctor：项目补充还有 P2 层划分 → △ 0.4 结构" ;; *) bad "doctor：项目补充还有 P2 层划分 → △ 0.4 结构" "$out" ;; esac
+git -C "$I" checkout -q -- conductor/workflow.md
+
+# seed 对已有 CLAUDE.md 的判定：/flow:triage → 已含；/flow:shape（0.5）→ 待替换；都没有 → 待插入；都不改文件
+Cm="$TMP/claudemd"
+mkdir -p "$Cm" && git -C "$Cm" init -q -b main
+printf '# X\n\n新需求先 `/flow:triage` 出分诊卡\n' >"$Cm/CLAUDE.md"
+cp "$Cm/CLAUDE.md" "$TMP/claudemd.orig"
+out=$("$S/init-project.sh" seed "$Cm" 2>&1)
+case "$out" in *"已存在  CLAUDE.md（已含 flow 段）"*) ok "seed：CLAUDE.md 含 /flow:triage → 已含 flow 段" ;; *) bad "seed：CLAUDE.md 含 /flow:triage → 已含 flow 段" "$out" ;; esac
+cmp -s "$Cm/CLAUDE.md" "$TMP/claudemd.orig" && ok "seed 不改已有 CLAUDE.md" || bad "seed 不改已有 CLAUDE.md"
+printf '# X\n\n新需求先 `/flow:shape` 出定形卡，`/flow:build` 一片一片做\n' >"$Cm/CLAUDE.md"
+out=$("$S/init-project.sh" seed "$Cm" 2>&1)
+case "$out" in *"待替换  CLAUDE.md —— 含 0.5 的 flow 段"*"templates/CLAUDE.flow-section.md"*) ok "seed：CLAUDE.md 是 0.5 的 /flow:shape 段 → 待替换" ;; *) bad "seed：CLAUDE.md 是 0.5 的 /flow:shape 段 → 待替换" "$out" ;; esac
+printf '# X\n\n## 命令\n\n- make test\n' >"$Cm/CLAUDE.md"
+out=$("$S/init-project.sh" seed "$Cm" 2>&1)
+case "$out" in *"待插入  CLAUDE.md —— 已存在但没有 flow 段"*) ok "seed：CLAUDE.md 没有 flow 段 → 待插入" ;; *) bad "seed：CLAUDE.md 没有 flow 段 → 待插入" "$out" ;; esac
+case "$out" in *"已存在  conductor/backlog.md"*) ok "重跑 seed 不覆盖 backlog.md" ;; *) bad "重跑 seed 不覆盖 backlog.md" "$out" ;; esac
+
+# conductor 2.5 没用 flow 模板、拿自带的覆盖了 → finish 报异常且不激活
 J="$TMP/clobbered"
 mkdir -p "$J" && git -C "$J" init -q -b main
 "$S/init-project.sh" seed "$J" >/dev/null 2>&1
-echo "# 手写的 workflow" >"$J/conductor/workflow.md"
+echo "# Conductor default workflow" >"$J/conductor/workflow.md"
 "$S/init-project.sh" finish "$J" >/dev/null 2>&1 && bad "workflow.md 被覆盖 → finish 失败" || ok "workflow.md 被覆盖 → finish 失败"
 [ -e "$J/.claude/flow.json" ] && bad "workflow.md 被覆盖 → 不写 flow.json" || ok "workflow.md 被覆盖 → 不写 flow.json"
 
@@ -317,8 +409,11 @@ grep -q 'flow:managed:begin' "$K/design-system/SYNC.md" 2>/dev/null && grep -q '
 grep -qxF 'design-system/.project-id' "$K/.gitignore" && ok ".gitignore 忽略 .project-id" || bad ".gitignore 忽略 .project-id"
 case "$out" in *"待插入  CLAUDE.md 设计段"*) ok "提示插入 CLAUDE.md 设计段" ;; *) bad "提示插入 CLAUDE.md 设计段" "$out" ;; esac
 "$S/sync-managed.sh" --check --design design-system "$K" | grep -q '^最新    design-system/SYNC.md' && ok "--design 时 sync 管 SYNC.md" || bad "--design 时 sync 管 SYNC.md"
-# 填完项目补充、提交 → finish 自动识别设计目录
-git -C "$K" add -A && git -C "$K" commit -qm "seed"
+# 模拟 conductor setup 完成 → finish 自动识别设计目录
+cp "$K/.conductor_templates/workflow.md" "$K/conductor/workflow.md"
+echo "# P" >"$K/conductor/product.md" && echo "# T" >"$K/conductor/tech-stack.md"
+printf '{"last_successful_step": "3.3_initial_track_generated"}\n' >"$K/conductor/setup_state.json"
+git -C "$K" add -A && git -C "$K" commit -qm "conductor(setup): Add conductor set up files"
 "$S/init-project.sh" finish "$K" >/dev/null 2>&1
 jq -e '.design.dir == "design-system" and (.worktree_links | index(".env") != null) and (.worktree_links | index("design-system/.project-id") != null)' \
   "$K/.claude/flow.json" >/dev/null && ok "finish 自动登记 design.dir 与 .project-id 软链" || bad "finish 自动登记 design.dir" "$(cat "$K/.claude/flow.json")"

@@ -3,6 +3,37 @@
 版本号即 `plugins/flow/.claude-plugin/plugin.json` 的 `version`，也是各项目 `conductor/workflow.md`
 托管区标记里的版本。**不改 version 的提交，已安装的项目拿不到。**
 
+## 0.6.0 — 2026-10-09
+
+**回到 conductor 底座。** 0.5 为了解决「一个简单功能做很久、一直在打转」把 conductor、分诊、一档 spec 一起换掉了，
+但问题不在 conductor：conductor 的 `implement` 每个任务、每个 phase 怎么做都照 `conductor/workflow.md` 执行，
+重的是 0.4 叠在上面的那几层（按层数分档、spec 审三轮、每个 phase 双镜头验收、冻结测试的记账、立项与记账各开 PR）。
+0.6 恢复 0.4 的骨架与用户自己的流程（分诊、访谈、拆分守则、Claude Design 设计环节、一档 spec），在 workflow.md 里
+改掉让它变重的规则，并保留 0.5 里证明有用的部分。
+
+- **流程**（workflow.md 重写，约 240 行）：
+  - 三档改按「后果 + 规模」判：双向门一个 PR 做得完 → 一档 `/flow:spec`；双向门要多片 → 二档 track；
+    碰单向门（P1）→ 三档 track。层数、文件数不作判据；视觉没定只决定走不走设计环节，不升档
+  - plan 的 phase = 能单独上线的竖切小片（一个 PR、非测试代码约 ≤400 行、不按层切、第一片先打通真实系统）
+  - 审阅：一个改动审一次——一档有逻辑的 1 次、纯展示不审；二档 track 做完 1 次（每片过 check 即合并上线）；
+    三档写代码前审 spec 1 次 + 每个单向门片合并前 1 次。一次审阅一个代理、多个镜头一起看；只有 BLOCKER 必须修，
+    复审只核对 BLOCKER、最多一次
+  - 停点 4 处：分诊卡 / 访谈 ≤3 问 / 立项确认（spec + plan 一次）/ 三档 PR 合并；上线后请用户试只发通知、不阻塞
+  - conductor 的 Task Workflow 与 Phase 完成协议改写：勾选与代码同一提交；不写 git notes、不回填 SHA、不做检查点
+    提交、不等用户回复 yes；立项文件跟第一片的 PR，`[x]` 跟最后一片；不再有立项 PR 与记账 PR
+  - 三档先行测试保留（立项时写好、实现方不改断言），去掉冻结相关的记账
+  - 保留 0.5：讨论 / 交付两种模式、胃口与断路器、等用户就发通知、流程教训当天改 workflow.md、`/flow:stats`
+  - 新增「conductor 覆盖声明」：new-track 不重复问分诊已答的、一次问完、spec + plan 一起确认；implement 的文档同步
+    进最后一片的 PR，归档提示默认跳过，自动选题跳过 `⛔ blocked_by`
+- **skills**：恢复 `/flow:triage`（分诊卡加上胃口、这次不做、怎么验收、切片）、`/flow:spec`（一档）；`/flow:design-track`
+  恢复为立项里的设计环节、快照进 track；新增 `/flow:catchup`；`/flow:closeout` 每片上线、track 最后一片触发整体审阅；
+  `/flow:init` 重新编排完整的 `/conductor:setup` 访谈；删除 `/flow:shape`、`/flow:build`
+- **agents**：恢复 `flow:spec-reviewer`（只审三档 spec，一次）、`flow:phase-gate-reviewer`（代码审阅：单个 PR 或整个
+  track）、`flow:architecture-reviewer`（按需）；`flow:security-reviewer` 改为按需；删除 `flow:pr-reviewer`、`flow:risk-reviewer`
+- **hooks**：恢复 tracks.md 校验；init / doctor 恢复 conductor 的安装、启用与 setup 状态检查；单向门提醒文案改为三档口径；
+  0.5 的词法 Bash 守卫保留
+- 升级指引见 `skills/init/upgrade.md`「从 0.5 升级到 0.6」「从 0.4 升级到 0.6」
+
 ## 0.5.0 — 2026-10-08
 
 **按后果分级，以上线为终点。** 0.1–0.4 在两个项目上实测：审阅与验收占子代理输出 token 的 44%、实现只占 26%；

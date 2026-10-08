@@ -72,7 +72,7 @@ flow_ver_cmp() {
 # flow_hygiene_report <当前工作目录> [full]
 #   full：连当前 worktree 的未提交变更也报（SessionStart 用）；Stop 每轮都跑，干活中途有未提交
 #   变更是常态，不报，只报真正的「没收尾」。
-# 覆盖 workflow §3.5 合并后清理与「主 checkout 只读」的 Bash 绕过面（Edit 有 hook 拦，Bash 重定向没有）。
+# 覆盖 workflow §7.1 收尾与「主 checkout 只读」的 Bash 绕过面（Edit 有 hook 拦，Bash 重定向没有）。
 flow_hygiene_report() {
   local cwd="${1:-$PWD}" mode="${2:-}" root main base changes merged gone basesha stale cur
   main=$(flow_main_branch)
@@ -124,7 +124,7 @@ flow_hygiene_report() {
       printf '    %s (%s)\n' "$wt" "$br"
     done)
   if [ -n "$stale" ]; then
-    echo "⚠️  分支已并入 ${base}（或远端分支已删）但 worktree 未删（workflow §3.5，跑 /flow:closeout）:"
+    echo "⚠️  分支已并入 ${base}（或远端分支已删）但 worktree 未删（workflow §7.1 收尾，跑 /flow:closeout）:"
     printf '%s\n' "$stale"
   fi
   return 0

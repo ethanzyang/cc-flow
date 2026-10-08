@@ -43,7 +43,7 @@ command -v python3 >/dev/null 2>&1 || add "⚠️  本机没装 python3，flow �
 hyg=$(flow_hygiene_report "$cwd" full 2>/dev/null)
 [ -n "$hyg" ] && add "$hyg"
 
-ctx="本仓库启用 flow 工作流（插件 v${pv}）：按后果分级，以上线为终点。规则正文 conductor/workflow.md（托管区 + 文末「项目补充」P1–P6）。新需求先 /flow:shape 出定形卡（用户在问方案时只出方案、不写代码）；用户说「做」后 /flow:build 一片一片做；合并后 /flow:closeout 上线。主 checkout 只读、改动走 worktree。流程类教训当天改 workflow.md，不要只记 memory。"
+ctx="本仓库启用 flow 工作流（插件 v${pv}，conductor 为底座）。规则正文 conductor/workflow.md（托管区 + 项目补充 P1–P6）。新需求先 /flow:triage 出分诊卡（用户在问方案时只出方案、不写代码）；一档 /flow:spec，二/三档 /conductor:new-track + /conductor:implement，plan 按能上线的小片排；每片合并后 /flow:closeout 上线。主 checkout 只读、改动走 worktree。流程类教训当天改 workflow.md，不要只记 memory。"
 if [ -n "$warn" ]; then
   ctx="$ctx
 $warn"

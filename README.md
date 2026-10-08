@@ -1,40 +1,56 @@
 # cc-flow
 
-Claude Code 开发工作流插件：**按后果分级，以上线为终点**。从 token-router 的 workflow v2.1 抽离，0.5 按两个项目
-的实测数据重写（审阅占 44% token、spec 首轮全 FAIL、上线后的问题 7/9 来自真实数据与产品理解而非代码逻辑）。
+Claude Code 开发工作流插件：**以 conductor 为底座，按后果分级，一片一上线**。从 token-router 的 workflow v2.1
+抽离，把作者基于 conductor 的工作方式（分诊、访谈、拆分守则、Claude Design 设计环节、守卫、新项目一键接入）打包成
+插件，新项目不用再从头搭流程。0.6 按两个项目的实测数据改轻（审阅占 44% token、spec 首轮全 FAIL、记账 PR 占一半、
+上线后的问题 7/9 来自真实数据与产品理解）。
 
 ```
-你的想法 → /flow:shape 定形卡（≤15 行）→ 你说「做」→ /flow:build 一片（测试先行 → check → 一轮审阅 → PR）
-        → 双向门：模型合并 / 单向门：你合并 → /flow:closeout 部署 + 冒烟 + 清理 → 你去试 → 下一片
+你的想法 → /flow:triage 分诊卡 → 你说「做」
+   ├─ 一档（双向门、一个 PR 做得完）→ /flow:spec → PR
+   └─ 二 / 三档 → /conductor:new-track（spec + plan，phase = 能上线的小片）→ 立项确认 → /conductor:implement
+→ 每片：测试先行 → check → PR →（三档单向门片：审一次 + 你合并）→ /flow:closeout 部署 + 冒烟 + 清理 → 你去试 → 下一片
 ```
 
-机制：**小片上线**（一片一个 PR、非测试代码约 ≤400 行、端到端可用，不按层切）、**按后果分级**（错了 revert 就没事的
-双向门快做；收不回来的单向门才加 spec、写代码前风险审阅、终审加安全审阅、用户合并）、**尽早碰现实**（真实数据、
-真实外部系统、用户实测）、**停点只有三处**（定形卡 / 单向门合并 / 上线后请你试）、**主 checkout 只读 + worktree**、
-**流程类教训当天改规则**。规则正文见 [`plugins/flow/templates/workflow.md`](plugins/flow/templates/workflow.md)。
+机制：
+- **conductor 是骨架**：`/conductor:implement` 照 `conductor/workflow.md` 的 Task Workflow 与 Phase 完成协议执行，flow
+  托管这份文件；
+- **按后果分级**：错了 revert 就没事的走一 / 二档；收不回来的（动钱、记账口径、密钥、数据迁移、审批守卫）走三档；
+- **小片上线**：plan 的一个 phase 一个 PR，非测试代码约 ≤400 行，端到端可用，不按层切；
+- **一个改动审一次**：一档有逻辑的 1 次；二档 track 做完 1 次；三档 spec 1 次 + 单向门片合并前 1 次；只有 BLOCKER 必须修；
+- **停点只有四处**：分诊卡 / 访谈 / 立项确认 / 三档合并；
+- **主 checkout 只读 + worktree**；
+- **流程类教训当天改规则**。
+
+规则正文见 [`plugins/flow/templates/workflow.md`](plugins/flow/templates/workflow.md)。
 
 ## 新项目接入
 
 ```text
 /plugin marketplace add ethanzyang/cc-flow
 /plugin install flow@cc-flow
+/plugin marketplace add https://github.com/pilotparpikhodjaev/conductor_cc.git
+/plugin install conductor@conductor-cc
 /flow:init
 ```
 
-`/flow:init` 放规则、问三件事（单向门、怎么上线、要不要设计系统）、填项目补充与 CLAUDE.md，最后激活 hook。
-已有提交的仓库在 `adopt-flow` worktree 里做。产出：
+`/flow:init` 放规则 → 跑完整的 `/conductor:setup` 产品定义访谈（产品 / 规范 / 技术栈 / 代码规范 / 首个 track）→
+问三件事（单向门、怎么上线、要不要设计系统）→ 填项目补充与 CLAUDE.md → 最后激活 hook。已有提交的仓库在
+`adopt-flow` worktree 里做。产出：
 
 | 文件 | 内容 |
 |---|---|
-| `conductor/workflow.md` | 规则正文：**托管区**（插件下发）+ 文末**项目补充 P1–P6**（单向门 / 上线 / 命令 / UI / 失败基线 / 其他）。路径是历史沿用 |
+| `conductor/product.md` 等 | conductor setup 的产物：产品、产品规范、技术栈、代码规范、`tracks.md` |
+| `conductor/workflow.md` | 规则正文：**托管区**（插件下发）+ 文末**项目补充 P1–P6**（单向门 / 上线 / 命令 / UI / 失败基线 / 其他） |
+| `conductor/backlog.md` | 想做但没立项的条目 |
 | `dev-docs/TEAM_GUIDE.md` | 5 分钟上手导览（托管） |
 | `CLAUDE.md` | 高频规则（≤约 100 行）+ 工作流段 + 分支纪律 |
 | `.claude/rules/*.md` | 按文件类型的规则（frontmatter `paths:`）；只为既有约定建 |
 | `.claude/flow.json` | hook 配置：保护路径、单向门提醒路径、格式化命令等 |
-| `.claude/settings.json` | 合并：插件自动安装 + 权限基线 |
+| `.claude/settings.json` | 合并：flow + conductor 插件自动安装 + 权限基线 |
 
-依赖：`jq`（必需，hook 全靠它）、`python3`（Bash 守卫、JSON 重复键检查）、`gh`（PR 与度量）、浏览器自动化
-（截图）。0.5 起**不再依赖 conductor 插件**。
+依赖：conductor 插件（二 / 三档的 track）、`jq`（必需，hook 全靠它）、`python3`（Bash 守卫、JSON 重复键检查）、
+`gh`（PR 与度量）、浏览器自动化（截图）。
 
 ## 包含什么
 
@@ -42,26 +58,29 @@ Claude Code 开发工作流插件：**按后果分级，以上线为终点**。�
 
 | 命令 | 用途 |
 |---|---|
-| `/flow:shape` | 定形卡：目标 / 第一片做完你能 / 这次不做 / 胃口 / 门 / 怎么验收 / 切片；讨论模式只出方案 |
-| `/flow:build` | 实现一片：worktree → 测试先行 → check → 一轮审阅 → PR →（双向门）合并 |
-| `/flow:closeout` | 合并后：部署 + 冒烟 + 清理 + 请用户试 |
-| `/flow:stats` | 度量：PR 时长、大小、审阅轮数、只改文档的提交占比、上线后 48 小时内的修复 |
-| `/flow:visual-verify` | 按需的截图矩阵验收（对设计稿 / 对现状 / 对定形卡） |
-| `/flow:design-track` | 视觉没定的新界面：写 BRIEF 推给你画 → 拉回设计包 → 接定形卡 |
+| `/flow:triage` | 分诊卡：档位 / 车道与设计输入 / 第一片做完你能 / 切片 / 这次不做 / 胃口 / 怎么验收；讨论模式只出方案 |
+| `/flow:spec` | 一档：一页 DELTA 规格 → 实现 → check → PR |
+| `/flow:closeout` | 每片合并后：部署 + 冒烟 + 清理 + 请用户试；track 最后一片触发整体审阅 |
+| `/flow:catchup` | `/clear` 或新会话后恢复进度（分支、plan、tracks、PR） |
+| `/flow:design-track` | 立项里的设计环节：写 BRIEF 推给你画 → 拉回设计包、快照进 track |
 | `/flow:design push` / `pull` | 仓库设计系统 ⇄ 自己的 Claude Design 副本；仅手动调用 |
-| `/flow:init` | 接入新项目；已接入时：插件升级后同步托管区、补设计模块 |
+| `/flow:visual-verify` | 截图矩阵验收（对设计稿 / 对现状 / 对 spec 清单），按需 |
+| `/flow:stats` | 度量：PR 时长、大小、审阅次数、只改文档的提交占比、上线后 48 小时内的修复 |
+| `/flow:init` | 接入新项目（编排 conductor setup）；已接入时：插件升级后同步托管区、补设计模块 |
 
-**Agents**：`flow:pr-reviewer`（每个 PR 一轮，严重度按后果定，只有 BLOCKER 挡合并）、`flow:risk-reviewer`
-（单向门写代码前一轮）、`flow:security-reviewer`（单向门 PR 加一轮）。
+track 的立项与实现用 conductor 自己的 `/conductor:new-track`、`/conductor:implement`，行为由 workflow.md 约束。
+
+**Agents**：`flow:spec-reviewer`（三档写代码前审 spec 一次）、`flow:phase-gate-reviewer`（代码审阅：一个 PR 或整个
+track；严重度按后果定，只有 BLOCKER 必须修）、`flow:security-reviewer` / `flow:architecture-reviewer`（按需加派）。
 
 **Hooks**（只对有 `.claude/flow.json` 的仓库生效，插件装在用户级也不影响别的仓库）
 
 | 事件 | 做什么 |
 |---|---|
 | SessionStart | 注入「本仓库走 flow」上下文；托管区版本漂移提示；未收尾提醒；worktree 软链 .env |
-| PreToolUse Edit/Write | 主 checkout 只读；旧 design 快照只读；`protected_paths`；`no_full_rewrite` |
+| PreToolUse Edit/Write | 主 checkout 只读；track 的 design 快照只读（新建放行）；`protected_paths`；`no_full_rewrite` |
 | PreToolUse Bash | 只拦致命不可逆命令（按 shell 词法判断，提到不算）：删根 / 家目录 / 主 checkout / .git、非测试库 DROP / TRUNCATE、强推主干、删数据卷、抹盘；Bash 写 protected_paths / worktree_links 文件、no_full_rewrite、已入仓的旧 design 快照 |
-| PostToolUse Edit/Write | `format_on_edit`；JSON 重复键；单向门提醒 |
+| PostToolUse Edit/Write | `format_on_edit`；tracks.md 格式（`---` 分隔、状态标记）；JSON 重复键；单向门提醒 |
 | CwdChanged | 进 worktree 时软链 `worktree_links` |
 | Stop | 主 checkout 被写 / 已合并未删的 worktree |
 
@@ -73,7 +92,7 @@ Claude Code 开发工作流插件：**按后果分级，以上线为终点**。�
 - Claude Design 的设计系统项目是账号私有的，所以用 git 合流：每人 `/design-login` 后
   `/flow:design push` 建自己的云端副本；改了已有设计文件当天 `/flow:design pull` 拉回开 PR
 - 视觉没定的新界面：`/flow:design-track <feature>` 先写 BRIEF 推给你 → 你在 Claude Design 画 → 再跑一次拉回
-  `design-system/<feature>/`，接定形卡分片实现
+  `design-system/<feature>/`、快照进 track 的 `design/`，接着出 spec / plan
 - CLAUDE.md 设计段声明「美学方向归设计系统」：有设计输入时 frontend-design 等 skill 的自由发挥条款失效
 - 实现侧镜像 token 的（如 `web/src/styles/tokens.css`），在 SYNC.md D2 写清并加字符级比对测试——
   每个项目不一样，flow 只留位置、不做通用实现
@@ -134,4 +153,4 @@ glob 用 shell `case` 语义，`*` 可以跨 `/`，所以开头写 `*/` 就能�
 - Bash 守卫按 shell 词法判断，解析失败一律放行（由 auto 模式分类器兜底）；变量展开出来的路径认不出
 - `.claude/flow.json` 取自 session 启动目录：在 worktree 分支上改 flow.json，合并前不影响当前
   session 的 hook
-- 插件 skill 必须带前缀调用（`/flow:shape`，不能 `/shape`）
+- 插件 skill 必须带前缀调用（`/flow:triage`，不能 `/triage`）
