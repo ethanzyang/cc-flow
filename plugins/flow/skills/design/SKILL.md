@@ -6,7 +6,7 @@ disable-model-invocation: true
 
 仓库是设计的唯一真相源，每个人的 Claude Design 项目只是个人副本（账号私有、无法共享，所以用 git
 合流）。规矩全文在设计目录的 `SYNC.md`，这里是执行步骤。**新功能的设计不走这里**——
-`/flow:design-track <feature>` 会写 BRIEF 推给你、画完再拉回接进立项。
+`/flow:design-track <feature>` 会写 BRIEF 推给你、画完再拉回接上实现。
 
 ## 0. 前置（push / pull 共用）
 

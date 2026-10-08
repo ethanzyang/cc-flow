@@ -2,7 +2,7 @@
 # PreToolUse(Edit|Write|MultiEdit|NotebookEdit)：把「靠自觉」的路径规则变成确定性拦截。
 #   1) 主 checkout 只读：本项目仓库里、当前分支是主干的文件一律拦——改动走 worktree。
 #      别的仓库、非 git 目录（如 ~/.claude 下的 memory）、被 gitignore 的本地文件不管。
-#   2) conductor/tracks/*/design*/ 是只读立项快照（workflow §3.2）
+#   2) conductor/tracks/*/design*/ 是旧版 flow 留下的只读历史快照：已存在的文件不许改（新建放行）
 #   3) flow.json protected_paths：永远不许改
 #   4) flow.json no_full_rewrite：已存在的文件不许用 Write 整文件重写（只许 Edit 局部改）
 # 退出码 2 = 阻断并把 stderr 喂回模型；0 = 放行。
@@ -30,10 +30,12 @@ if [ -n "$file_root" ] && [ "$file_root" = "$proj_root" ]; then
   fi
 fi
 
-# 2) design 快照只读
+# 2) design 历史快照只读（只拦回改已存在的文件）
 case "$f" in
   */conductor/tracks/*/design*/*)
-    flow_block "conductor/tracks/*/design/ 是只读立项快照（workflow §3.2）。要改设计请改设计真相源再重新 /flow:design-track。" ;;
+    if [ -e "$f" ]; then
+      flow_block "conductor/tracks/*/design*/ 是只读历史快照。要改设计请改设计真相源（.claude/flow.json 的 design.dir）。"
+    fi ;;
 esac
 
 # 3) 保护路径

@@ -6,11 +6,11 @@
 
 ## Product, in 30 seconds
 
-（产品是什么、给谁用、核心价值——取自 `conductor/product.md`）
+（产品是什么、给谁用、核心价值——取自 CLAUDE.md 的定位与产品文档）
 
 ## Content fundamentals
 
-（文案语气、术语、禁用词——取自 `conductor/product-guidelines.md`）
+（文案语气、术语、禁用词——取自产品文档与 CLAUDE.md 的文案规则）
 
 ## Visual foundations
 

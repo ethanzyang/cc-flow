@@ -4,7 +4,7 @@
 
 ## 命令
 
-- 测试：`bash tests/lint.sh && bash tests/hooks.test.sh`
+- 测试：`bash tests/lint.sh && bash tests/hooks.test.sh && python3 tests/guard-bash.test.py`
 - 校验：`claude plugin validate ./plugins/flow && claude plugin validate .`
 - 本地加载：`claude --plugin-dir ./plugins/flow`
 
@@ -18,6 +18,6 @@
    **`$var` 后面紧跟中文必须写成 `${var}`**——bash 3.2 会把中文字节当成变量名的一部分，
    `set -u` 下直接 unbound variable（`tests/lint.sh` 会查）。
 4. hook 必须「未启用即放行」：没有 `.claude/flow.json` 的仓库一律 `exit 0`、无输出。
-5. 改 hook 行为 → 在 `tests/hooks.test.sh` 加正例 + 反例；循环里要 `exit` 的用 heredoc 喂数据，
+5. 改 hook 行为 → 在 `tests/hooks.test.sh`（Bash 守卫在 `tests/guard-bash.test.py`）加正例 + 反例；循环里要 `exit` 的用 heredoc 喂数据，
    不用管道（管道开子 shell，exit 出不去）。
 6. `init-project.sh` 只建缺失文件、从不覆盖；settings 合并保序去重、不删用户已有条目。

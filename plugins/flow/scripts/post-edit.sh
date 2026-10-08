@@ -1,10 +1,9 @@
 #!/usr/bin/env bash
 # PostToolUse(Edit|Write|MultiEdit)：保存后的确定性处理，其余一律放行。
 #   1) flow.json format_on_edit：按 glob 跑格式化命令（失败不阻断）
-#   2) conductor/tracks.md 不变量：^## 计数 == ^--- 计数；状态标记只许 [ ]/[~]/[x]（workflow §7）
-#   3) flow.json json_dup_key_check：JSON 合法 + 同一对象内无新增重复键
+#   2) flow.json json_dup_key_check：JSON 合法 + 同一对象内无新增重复键
 #      （有重复键的文件经 json.load/dump 往返会被静默折叠成最后一次出现的值）
-#   4) flow.json sensitive_paths：碰到敏感域文件时往模型上下文里注入一次提醒（不阻断）
+#   3) flow.json sensitive_paths：碰到单向门相关文件时往模型上下文里注入一次提醒（不阻断）
 # 退出码 2 = 把 stderr 回喂给模型；0 = 通过。
 set -u
 . "$(dirname "$0")/lib.sh"
@@ -40,21 +39,7 @@ EOF
   i=$((i + 1))
 done
 
-# 2) tracks.md 不变量
-case "$f" in
-  */conductor/tracks.md)
-    h=$(grep -c '^## ' "$f" || true)
-    d=$(grep -c '^---$' "$f" || true)
-    if [ "$h" != "$d" ]; then
-      fail "tracks.md 不变量破坏：'^## ' 有 $h 个，'^---\$' 有 $d 个（每节前必须一个 --- 分隔符，含首节）。缺分隔符会破坏 /conductor:implement 的解析。"
-    fi
-    if grep -qE '^## \[[^] ~x]' "$f"; then
-      fail "tracks.md 状态标记只允许 [ ]/[~]/[x]（workflow §7）。未立项条目放 conductor/backlog.md；superseded 用 [x] + 描述行注明。"
-    fi
-    ;;
-esac
-
-# 3) JSON 重复键
+# 2) JSON 重复键
 while IFS="$(printf '\t')" read -r glob known; do
   [ -z "$glob" ] && continue
   flow_match "$f" "$glob" || continue
@@ -87,7 +72,7 @@ done <<EOF
 $(jq -r '.json_dup_key_check[]? | [.glob, ((.known // []) | tojson)] | @tsv' "$FLOW_CFG" 2>/dev/null)
 EOF
 
-# 4) 敏感域提醒：同一 session 同一文件只提醒一次
+# 3) 单向门提醒：同一 session 同一文件只提醒一次
 hit=""
 while IFS= read -r glob; do
   [ -n "$glob" ] && flow_match "$f" "$glob" && hit="$glob" && break
@@ -99,7 +84,7 @@ if [ -n "$hit" ]; then
   mark="${TMPDIR:-/tmp}/flow-sensitive-$sid"
   if ! grep -qxF "$f" "$mark" 2>/dev/null; then
     printf '%s\n' "$f" >>"$mark" 2>/dev/null
-    msg="flow: $f 属于敏感域（flow.json sensitive_paths: ${hit}）。按 workflow §0 停点 5 / §2.3：本次改动归三档，需 review agent 过目，PR 由用户显式合并；§4.6 敏感域测试冻结同样适用。"
+    msg="flow: $f 在单向门提醒路径上（flow.json sensitive_paths: ${hit}）。先判断这次改动错了能否 revert 了事（workflow §2）：不能 → 按单向门走（§4：spec + 写代码前一轮 risk-reviewer、核心不变量测试先行且不改断言、PR 终审加 security-reviewer、用户合并）。"
     jq -n --arg m "$msg" '{hookSpecificOutput: {hookEventName: "PostToolUse", additionalContext: $m}}'
   fi
 fi
