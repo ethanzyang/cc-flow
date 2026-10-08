@@ -82,30 +82,74 @@ expect_exit "no_full_rewrite：Write 新文件 → 放行" 0 guard-edit.sh "$(ed
 CLAUDE_PROJECT_DIR="$N" expect_exit "未启用 flow 的仓库 → 全放行" 0 guard-edit.sh "$(edit_json Edit "$N/a.go")"
 
 echo "guard-bash"
-expect_exit "rm -rf / → 拦" 2 guard-bash.sh "$(bash_json 'cd x && rm -rf /')"
-expect_exit "git push --force → 拦" 2 guard-bash.sh "$(bash_json 'git push --force origin x')"
-expect_exit "git reset --hard → 拦" 2 guard-bash.sh "$(bash_json 'git reset --hard HEAD~1')"
-expect_exit "DROP TABLE → 拦" 2 guard-bash.sh "$(bash_json 'sqlite3 db "DROP TABLE users"')"
-expect_exit "重定向写 locale → 拦" 2 guard-bash.sh "$(bash_json 'echo {} > web/i18n/en.json')"
-expect_exit "读 locale → 放行" 0 guard-bash.sh "$(bash_json 'cat web/i18n/en.json')"
-expect_exit "重定向写 design 快照 → 拦" 2 guard-bash.sh "$(bash_json 'echo x > conductor/tracks/t/design/a.md')"
-expect_exit "追加写 design-r2 快照 → 拦" 2 guard-bash.sh "$(bash_json 'cat n.md >> "conductor/tracks/t/design-r2/notes.md"')"
-expect_exit "tee 写 design 快照 → 拦" 2 guard-bash.sh "$(bash_json 'printf x | tee -a conductor/tracks/t/design/a.md')"
-expect_exit "sed -i 改 design 快照 → 拦" 2 guard-bash.sh "$(bash_json "sed -i '' s/a/b/ conductor/tracks/t/design/tokens.css")"
-expect_exit "cd 进快照目录后重定向 → 拦" 2 guard-bash.sh "$(bash_json 'cd conductor/tracks/t/design && echo x > a.md')"
-expect_exit "cd 进 track 后写 design/ → 拦" 2 guard-bash.sh "$(bash_json 'cd conductor/tracks/t && echo x >design/a.md')"
-expect_exit "读快照带 2>/dev/null → 放行" 0 guard-bash.sh "$(bash_json 'cat conductor/tracks/t/design/BRIEF.md 2>/dev/null | head')"
-expect_exit "cd 进 track 后 find design 2>&1 → 放行" 0 guard-bash.sh "$(bash_json 'cd conductor/tracks/t && find design -type f 2>&1 | head')"
-expect_exit "git add 快照 + commit 尾注 <…> → 放行" 0 guard-bash.sh "$(bash_json 'git add conductor/tracks/t/design && git commit -m "design(t): pull
-Co-Authored-By: C <noreply@example.com>"')"
-expect_exit "sed -i 改 plan.md、同命令提到 design-input.md → 放行" 0 guard-bash.sh "$(bash_json "sed -i '' s/a/b/ conductor/tracks/t/plan.md && git add conductor/tracks/t/design-input.md")"
-expect_exit "track 名含 design 的重定向 → 放行" 0 guard-bash.sh "$(bash_json 'echo x > conductor/tracks/redesign_1/spec.md')"
-expect_exit "读 locale 带 2>&1 → 放行" 0 guard-bash.sh "$(bash_json 'cat web/i18n/en.json 2>&1 | jq .')"
-expect_exit "cd 到 locale 目录后重定向 → 拦" 2 guard-bash.sh "$(bash_json 'cd web/i18n && echo {} > en.json')"
-expect_exit "dd of= 写 locale → 拦" 2 guard-bash.sh "$(bash_json 'dd if=/dev/zero of=web/i18n/en.json count=1')"
-expect_exit "普通命令 → 放行" 0 guard-bash.sh "$(bash_json 'git status && ls -la')"
-expect_exit "rm -rf 普通目录 → 放行" 0 guard-bash.sh "$(bash_json 'rm -rf node_modules')"
-CLAUDE_PROJECT_DIR="$N" expect_exit "未启用 flow → 放行" 0 guard-bash.sh "$(bash_json 'git push --force')"
+# 新守卫按 shell 词法只看「会执行的」命令与写入目标，相对路径按 hook 输入里的 cwd 解析，所以每条都带 cwd。
+# 全量正反例在 tests/guard-bash.test.py；这里覆盖每一类拦截 + 旧版子串匹配误拦过的场景。
+# design 快照只拦回改「已存在」的文件：先在 worktree 里放几份，段末删掉，不影响后面各段。
+gb_json() { jq -nc --arg d "$1" --arg c "$2" '{tool_name:"Bash", cwd:$d, tool_input:{command:$c}}'; }
+gb() { expect_exit "$1" "$2" guard-bash.sh "$(gb_json "$3" "$4")"; }
+mkdir -p "$W/conductor/tracks/t/design" "$W/conductor/tracks/t/design-r2"
+echo a >"$W/conductor/tracks/t/design/a.md"
+echo b >"$W/conductor/tracks/t/design/BRIEF.md"
+echo c >"$W/conductor/tracks/t/design/tokens.css"
+echo n >"$W/conductor/tracks/t/design-r2/notes.md"
+gb "rm -rf / → 拦" 2 "$W" 'cd x && rm -rf /'
+gb "rm -rf ~ → 拦" 2 "$W" 'rm -rf ~'
+gb "主 checkout 里 rm -rf * → 拦" 2 "$P" 'rm -rf *'
+gb "worktree 里 rm -rf * → 放行" 0 "$W" 'rm -rf *'
+gb "rm -rf 普通目录 → 放行" 0 "$W" 'rm -rf node_modules'
+gb "rm -rf .git → 拦" 2 "$P" 'rm -rf .git'
+gb "空变量 VAR/ 展开成 / → 拦" 2 "$W" 'rm -rf $FLOW_TEST_UNSET_VAR/'
+gb "git push --force 到主干 → 拦" 2 "$W" 'git push --force origin main'
+gb "git push --force 到功能分支 → 放行" 0 "$W" 'git push --force origin x'
+gb "主 checkout 上 git push -f（HEAD 是主干）→ 拦" 2 "$P" 'git push -f'
+gb "git push --mirror → 拦" 2 "$W" 'git push --mirror'
+gb "git reset --hard → 放行（reflog 找得回，不算致命）" 0 "$W" 'git reset --hard HEAD~1'
+gb "主 checkout 里 git clean -x → 拦" 2 "$P" 'git clean -fdx'
+gb "worktree 里 git clean -x → 放行" 0 "$W" 'git clean -fdx'
+gb "sqlite3 对非测试库 DROP TABLE → 拦" 2 "$W" 'sqlite3 db "DROP TABLE users"'
+gb "sqlite3 对 *_test 库 DROP TABLE → 放行" 0 "$W" 'sqlite3 app_test.db "DROP TABLE users"'
+gb "psql 对非测试库 TRUNCATE → 拦" 2 "$W" "psql -d app -c 'TRUNCATE users'"
+gb "psql 对 *_test 库 TRUNCATE → 放行" 0 "$W" "psql -d app_test -c 'TRUNCATE users'"
+gb "heredoc 喂给 psql 的 DROP → 拦" 2 "$W" "psql -d app <<'SQL'
+DROP TABLE users;
+SQL"
+gb "dropdb 非测试库 → 拦" 2 "$W" 'dropdb app'
+gb "commit message 提到 TRUNCATE / DROP TABLE / rm -rf / → 放行" 0 "$W" 'git commit -m "guard: TRUNCATE, DROP TABLE and rm -rf / are blocked"'
+gb "heredoc 正文提到 DROP TABLE / rm -rf / → 放行" 0 "$W" "cat > notes.md <<'EOF'
+DROP TABLE users;
+rm -rf /
+EOF"
+gb "grep 'DROP TABLE' → 放行" 0 "$W" "grep -rn 'DROP TABLE' src"
+gb "docker volume rm → 拦" 2 "$W" 'docker volume rm app_pgdata'
+gb "docker compose down -v → 拦" 2 "$W" 'docker compose down -v'
+gb "dd of=/dev/disk2 → 拦" 2 "$W" 'dd if=/dev/zero of=/dev/disk2'
+gb "dd of=/dev/null → 放行" 0 "$W" 'dd if=/dev/zero of=/dev/null count=1'
+gb "重定向写 .env（worktree_links / protected_paths）→ 拦" 2 "$P" 'echo KEY=1 >> .env'
+gb "rm 主 checkout 的 .env → 拦" 2 "$P" 'rm .env'
+gb "读 .env 带 2>/dev/null → 放行" 0 "$P" 'cat .env 2>/dev/null | head -1'
+gb "写 .env.example → 放行" 0 "$P" 'echo X= >> .env.example'
+gb "重定向写 locale → 拦" 2 "$W" 'echo {} > web/i18n/en.json'
+gb "读 locale → 放行" 0 "$W" 'cat web/i18n/en.json'
+gb "读 locale 带 2>&1 → 放行" 0 "$W" 'cat web/i18n/en.json 2>&1 | jq .'
+gb "cd 到 locale 目录后重定向 → 拦" 2 "$W" 'cd web/i18n && echo {} > en.json'
+gb "dd of= 写 locale → 拦" 2 "$W" 'dd if=/dev/zero of=web/i18n/en.json count=1'
+gb "重定向写 design 快照 → 拦" 2 "$W" 'echo x > conductor/tracks/t/design/a.md'
+gb "design 快照里新建文件 → 放行" 0 "$W" 'echo x > conductor/tracks/t/design/new.md'
+gb "追加写 design-r2 快照 → 拦" 2 "$W" 'cat n.md >> "conductor/tracks/t/design-r2/notes.md"'
+gb "tee 写 design 快照 → 拦" 2 "$W" 'printf x | tee -a conductor/tracks/t/design/a.md'
+gb "sed -i 改 design 快照 → 拦" 2 "$W" "sed -i '' s/a/b/ conductor/tracks/t/design/tokens.css"
+gb "cd 进快照目录后重定向 → 拦" 2 "$W" 'cd conductor/tracks/t/design && echo x > a.md'
+gb "cd 进 track 后写 design/ → 拦" 2 "$W" 'cd conductor/tracks/t && echo x >design/a.md'
+gb "读快照带 2>/dev/null → 放行" 0 "$W" 'cat conductor/tracks/t/design/BRIEF.md 2>/dev/null | head'
+gb "cd 进 track 后 find design 2>&1 → 放行" 0 "$W" 'cd conductor/tracks/t && find design -type f 2>&1 | head'
+gb "git add 快照 + commit 尾注 <…> → 放行" 0 "$W" 'git add conductor/tracks/t/design && git commit -m "design(t): pull
+Co-Authored-By: C <noreply@example.com>"'
+gb "sed -i 改 plan.md、同命令提到 design-input.md → 放行" 0 "$W" "sed -i '' s/a/b/ conductor/tracks/t/plan.md && git add conductor/tracks/t/design-input.md"
+gb "track 名含 design 的重定向 → 放行" 0 "$W" 'echo x > conductor/tracks/redesign_1/spec.md'
+gb "普通命令 → 放行" 0 "$W" 'git status && ls -la'
+CLAUDE_PROJECT_DIR="$N" gb "未启用 flow → 强推主干也放行" 0 "$N" 'git push --force origin main'
+CLAUDE_PROJECT_DIR="$N" gb "未启用 flow → rm -rf ~ 也放行" 0 "$N" 'rm -rf ~'
+rm -r -f "$W/conductor/tracks/t"
 
 echo "post-edit"
 printf '# Project Tracks\n\n## [planned] Track: a\n' >"$W/conductor/tracks.md"
