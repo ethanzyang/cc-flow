@@ -187,7 +187,7 @@ doctor 必须「结论：通过」；△ 项能处理的处理掉，处理不了
 ```
 现在能用什么：本仓库已接入 flow + conductor——产品 / 技术栈文档已定，<首个 track <id> 已立项 ｜ 未建首个 track>；新需求 /flow:triage，合并后 /flow:closeout
 还缺什么：<doctor 的 △ 项 / 技术未定的 P3 命令 / 无>
-需要你做什么：<合并 PR #n ｜ 确认上线方式 ｜ 无>；首个 track：<二档：说「做」即在本会话 /conductor:implement ｜ 三档：新开 session 跑 /conductor:implement ｜ 设计先行：/flow:design-track <feature>>
+需要你做什么：<合并 PR #n ｜ 确认上线方式 ｜ 无>；首个 track：<二档：说「做」即在本会话 /conductor:implement ｜ 三档：在 <第一片 worktree 路径> 开新 session（或先 /flow:catchup）跑 /conductor:implement ｜ 设计先行：/flow:design-track <feature>>
 ```
 
 启用了设计模块时再加两行：每个成员首次 `/design-login` + `/flow:design push`（选或建自己的 Claude Design 设计系统

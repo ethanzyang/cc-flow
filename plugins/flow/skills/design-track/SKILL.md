@@ -62,7 +62,8 @@ description: 立项里的「设计环节」（conductor/workflow.md §3.2）—�
    - 两种都要做到：spec ≤200 行，引用 `design/` 四件套而不复制；**INVENTORY 全部条目进验收标准**；DECISIONS 作为
      不可违反的约束；plan 的 UI 片按帧 / 区块切成竖切小片（workflow §3.1），每片的验收是 `/flow:visual-verify`
      模式①（baseline = 快照里的高保真稿）。
-5. **审（只有三档）**：派 `flow:spec-reviewer` 审一次（workflow §6），BLOCKER 修进 spec；然后写先行测试（§4.5）。
+5. **审（只有三档）**：派 `flow:spec-reviewer` 审一次（workflow §6），BLOCKER 修进 spec；plan 里每个单向门片的第一个任务
+   写成「提交先行测试（立项上下文完成）」，测试提交在那一片自己的分支上（§4.5）。
    一档、二档不审。已有 track 的 spec 修订只涉及 UI 片（按二档走）→ 不审。
 6. **提交**（都在本分支，不开立项 PR）：设计包 `docs(design): pull <feature> from Claude Design`；快照 + spec / plan
    `docs(track): add <track> with <feature> design`（新 track）或 `docs(track): attach <feature> design to <track>`
@@ -71,7 +72,8 @@ description: 立项里的「设计环节」（conductor/workflow.md §3.2）—�
 ## 之后
 
 - **新 track** → 立项确认（停点 3）：spec + plan 一起给用户看一次。确认后按 workflow §3.3：二档本会话
-  `/conductor:implement`；三档换干净上下文（新 session 或新 agent）。设计包与 track 文件随第一片的 PR 合并。
+  `/conductor:implement`；三档换干净上下文（新 session 开在本 worktree 里，或先 `/flow:catchup`；或派新 agent）。设计包与
+  track 文件随第一片的 PR 合并。
 - **已有 track** → 不是立项确认：接着做这一片 UI；只有第 2 步出现冲突清单时才停。
 
 ## 汇报
@@ -83,5 +85,5 @@ description: 立项里的「设计环节」（conductor/workflow.md §3.2）—�
 ```
 现在能用什么：<feature> 已立项（设计包 + spec / plan，在分支 <branch>，随第一片的 PR 合并）
 还缺什么：<超限未拉回的文件 / 无>；第一片：<目标>
-需要你做什么：看一眼 spec + plan，说「做」即开工（<二档：本会话接着做 ｜ 三档：新开 session 跑 /conductor:implement>）
+需要你做什么：看一眼 spec + plan，说「做」即开工（<二档：本会话接着做 ｜ 三档：在 <第一片 worktree 路径> 开新 session（或先 /flow:catchup）跑 /conductor:implement>）
 ```

@@ -1,6 +1,6 @@
 ---
 name: phase-gate-reviewer
-description: 一个改动的那一次代码审阅（conductor/workflow.md §6）：一档有逻辑的 PR、三档单向门片合并前各审一次；二 / 三档 track 做完时一次看本 track 所有非展示片的 PR。正确性、资金、安全、架构在同一次里看完，严重度按后果定，只有 BLOCKER 挡合并。纯展示 / 文案 / 配置的改动不用它。
+description: 一个改动的那一次代码审阅（conductor/workflow.md §6）：一档有逻辑的 PR、三档单向门片合并前各审一次；二档 track 做完时一次看本 track 所有非展示片的 PR。正确性、资金、安全、架构在同一次里看完，严重度按后果定，只有 BLOCKER 挡合并。纯展示 / 文案 / 配置的改动不用它。
 tools: Read, Grep, Glob, Bash, WebFetch
 model: inherit
 ---
@@ -14,7 +14,7 @@ model: inherit
 与片名。读 `gh pr diff <n>`（没有 PR 时 `git diff origin/<main>...HEAD`），必要时读周边代码；三档读
 `conductor/tracks/<track>/spec.md` 与 `plan.md` 里这一片。
 
-**(b) track 做完**：track id + 若干 PR 号（本 track 合并前没审过的非展示片）。逐个 `gh pr diff <n>`，加 spec / plan。
+**(b) 二档 track 做完**：track id + 若干 PR 号（本 track 的非展示片）。逐个 `gh pr diff <n>`，加 spec / plan。
 重点看片与片之间的接缝（前片的假设后片改了没跟上）、spec 的不变量与对外契约在合并后的整体上是否成立。这些代码
 **已经在线上**，BLOCKER 由调用方立刻开修复片。
 
@@ -30,8 +30,9 @@ model: inherit
 5. **需求缺口**：spec / 分诊卡写了的能力（「第一片做完你能 …」、AC、对外契约），diff 里没做到或做反了。
 6. **三档单向门片专项**（P1 列出的、或你判断错了收不回来的）：
    - 核心不变量是否**至少有一条**测试；
-   - **测试文件的 diff**（workflow §4.5）：实现方有没有改弱先行测试（放松匹配、删断言、跳过用例）。PR 描述里没单列
-     理由的 → BLOCKER；列了理由的，判断理由是否成立；
+   - **测试文件的 diff**（workflow §4.5）：先行测试是这一片分支的第一个提交，看「该片第一个提交 → HEAD」里实现方有没有
+     改弱它们（放松匹配、删断言、跳过用例）。PR 描述里没单列理由的 → BLOCKER；列了理由的，判断理由是否成立；
+     分支第一个提交不是先行测试（或找不到先行测试）也报 BLOCKER；
    - P1 列出的文件逐行看安全面。
 7. **交付证据**：PR 描述里有没有 check 的输出；UI 改动有没有截图。缺了报一条建议（不算 BLOCKER）。
 

@@ -87,8 +87,9 @@ flow 的 hook 会拦）。
     「`/flow:design-track <feature> --track <本 track>`」；
   - 其余 → `/conductor:new-track`，把分诊卡整张作为它的描述传进去，并说明「分诊卡与访谈已答的不再问
     （workflow §7.3）」。
-  - 三档：spec 写完派 `flow:spec-reviewer` 审一次，BLOCKER 修进 spec，再写先行测试（§4.5）。
+  - 三档：spec 写完派 `flow:spec-reviewer` 审一次，BLOCKER 修进 spec；plan 里每个单向门片的第一个任务是「提交先行测试
+    （立项上下文完成）」，测试提交在那一片自己的分支上，不随第一片合并（§4.5）。
   - spec + plan 一起给用户确认一次（停点 3）。确认后：二档在本会话直接 `/conductor:implement`；三档换干净
-    上下文（新 session 或新 agent）开工。
+    上下文开工——新 session 开在第一片的 worktree 里（或先 `/flow:catchup`），或派一个只拿 spec / plan 的新 agent。
 
 确认后**不再回来问流程问题**；其余决策按 workflow §1 由模型拍板，理由写进 PR 描述。

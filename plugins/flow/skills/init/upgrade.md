@@ -19,6 +19,9 @@ bash "${CLAUDE_PLUGIN_ROOT}/scripts/sync-managed.sh" "<工作目录>"           
 状态真相源；入口回到 `/flow:triage` / `/flow:spec`，审阅者回到 `flow:spec-reviewer` / `flow:phase-gate-reviewer`。
 0.5 的小片上线、按后果分级、一个改动审一次、断路器都保留。
 
+0. **在 worktree 里跑一次 seed**：`bash "${CLAUDE_PLUGIN_ROOT}/scripts/init-project.sh" seed "<工作目录>" --main <主干>`。它只建
+   缺失文件、不覆盖已有内容，会顺带把 settings.json 里的 `conductor@conductor-cc` 置为 true（第 1 步）、报出 CLAUDE.md
+   「待替换」（第 2 步）。留下的 `.conductor_templates/` 已在本地排除、不会进提交，doctor 对它只报 △，可以手删。
 1. **重新启用 conductor**：`.claude/settings.json` 的 `enabledPlugins` 加 `"conductor@conductor-cc": true`，
    `extraKnownMarketplaces` 有 `conductor-cc`（`{"source": {"source": "git", "url": "https://github.com/pilotparpikhodjaev/conductor_cc.git"}}`）。
    auto 模式可能把改 `.claude/` 配置判为需要用户批准而拦下——拦下就把这两处改动原样给用户，请用户改或批准，不要换写法

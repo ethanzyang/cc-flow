@@ -45,8 +45,8 @@ track 还有下一片 → 从最新主干开下一片的 worktree，接着 `/con
 
 ## 5. track 做完（最后一片上线后）
 
-- 按 workflow §6 派 `flow:phase-gate-reviewer` 审一次整个 track：输入 = 本 track 各片的 PR 号（纯展示的片除外；三档里
-  合并前审过的单向门片除外）+ spec。没有要审的片就跳过。
+- **二档**：按 workflow §6 派 `flow:phase-gate-reviewer` 审一次整个 track：输入 = 本 track 各片的 PR 号（纯展示的片除外）+
+  spec。全是展示片就跳过。**三档不再审**（单向门片合并前都审过）。
 - 结论贴在最后一片的 PR 上（首行 `VERDICT:`）。有 BLOCKER → 立刻开一个修复片（代码已经在线上），并告诉用户。
 - 一档规格（`docs/specs/`）的状态行已在 PR 里写了 `PR #n`，不用再改。
 

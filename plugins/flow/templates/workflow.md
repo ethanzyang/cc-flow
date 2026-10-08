@@ -101,8 +101,9 @@ D 车道纪律：先试一把全自动，连改两轮改不动就重开会话重
 
 ```
 分诊卡（停点 1）→ 访谈（停点 2，按需）→ [设计环节 /flow:design-track，A 车道]
-  → /conductor:new-track：spec + plan → [三档：spec 审一次 + 写先行测试] → 立项确认（停点 3）
-  → /conductor:implement：一片一片做，每片 实现 → check → PR → [三档单向门片：审 + 用户合并（停点 4）]
+  → /conductor:new-track：spec + plan → [三档：spec 审一次] → 立项确认（停点 3）
+  → /conductor:implement：一片一片做，每片 实现 → check → PR
+     [三档单向门片：分支第一个提交是立项上下文写好的先行测试；合并前审一次 + 用户合并（停点 4）]
      → 合并 → 上线 → 请用户试 → 下一片
   → track 做完：审一次（§6）→ 收尾
 ```
@@ -119,7 +120,8 @@ D 车道纪律：先试一把全自动，连改两轮改不动就重开会话重
   - 后面的片可以只写一句目标，等用户用过前面的片再细化。phase 多于 5 个说明该拆 track 或砍范围。
   - 每个 phase 末尾的 meta-task 照 conductor 格式写 `- [ ] Task: Conductor - User Manual Verification
     '<Phase>' (Protocol in workflow.md)`，含义按 §5 执行。
-- **三档**：spec 写完派 `flow:spec-reviewer` 审一次（§6），BLOCKER 修进 spec；然后写先行测试（§4.5）。
+- **三档**：spec 写完派 `flow:spec-reviewer` 审一次（§6），BLOCKER 修进 spec。plan 里每个单向门片的第一个任务写成
+  「提交先行测试（立项上下文完成）」（§4.5）。
 - **立项确认**：spec + plan 一起给用户看一次（停点 3）。确认后：二档在同一会话直接 `/conductor:implement`；
   三档换干净上下文开工（§3.3）。
 - **立项文件跟第一片走**：track 目录、tracks.md 登记都提交在第一片的分支上，随第一片的 PR 合并，不单独开立项 PR。
@@ -148,7 +150,8 @@ D 车道纪律：先试一把全自动，连改两轮改不动就重开会话重
 
 - **二档**：立项确认后同一会话做完；上下文吃紧时 `/clear` 后 `/flow:catchup` 接着做。
 - **三档**：立项与实现分开上下文（新 session，或派一个只拿到 spec / plan 的新 agent）——这同时检验 spec 能否独立
-  执行，也让写先行测试的和让它们转绿的不是同一个上下文。
+  执行，也让写先行测试的和让它们转绿的不是同一个上下文。track 文件在第一片合并前只存在于它的分支上：新 session
+  要开在那个 worktree 里（或先 `/flow:catchup`），在主 checkout 开会让 implement 读到主干的 tracks.md、选错 track。
 - 同时进行的片不超过 2 个；分支只活几小时到一天。
 
 ## §4 任务流（`/conductor:implement` 的 Task Workflow）
@@ -189,8 +192,10 @@ D 车道纪律：先试一把全自动，连改两轮改不动就重开会话重
 
 ### 4.5 三档的先行测试
 
-核心不变量的测试在立项时写好（Red），随立项文件提交；实现方让它们转绿，**不改既有断言**——确需改（放松匹配、
-删断言、跳过用例）的在 PR 描述里单列理由，合并前的审阅专门核对测试文件的 diff。只用于三档的单向门片。
+只用于三档的单向门片。这一片的核心不变量测试由**立项上下文**写好（Red），作为**这一片分支的第一个提交**（plan 里该片的
+第一个任务），不随第一片或别的片合并——否则别的片的 check 会因为这些 Red 测试永远不绿。实现方让它们转绿，**不改既有
+断言**；确需改（放松匹配、删断言、跳过用例）的在 PR 描述里单列理由。合并前的审阅核对「该片第一个提交 → HEAD」的
+测试文件 diff。
 
 ## §5 Phase 完成协议（Phase Completion Verification and Checkpointing Protocol）
 
@@ -198,7 +203,8 @@ D 车道纪律：先试一把全自动，连改两轮改不动就重开会话重
 
 1. **check**：跑 P3 的 check 到全绿（基线外）；修两轮还不绿 → 断路器。
 2. **证据**：check 输出；改了 UI 的附关键截图（A 车道按设计稿核对）。
-3. **开 PR**（描述见 §5.1），同一分支上把本 phase 的 meta-task 勾成 `[x]`（含义：本片已交付，合并即上线）。
+3. **开 PR**（描述见 §5.1）。本 phase 的 meta-task 随本片最后一个任务的提交一起勾成 `[x]`（含义：本片已交付，合并即
+   上线），不单独提交。
    track 的**最后一片**还要在这个 PR 里：tracks.md 该条目 → `[x]`；删掉后继条目的 `⛔ blocked_by` 前缀；
    按需同步 `conductor/product.md` / `tech-stack.md`（改动列在 PR 描述里）。
 4. **审阅**：按 §6——三档的单向门片在这里审一次；一档有逻辑的审一次；其余不审。
@@ -234,7 +240,7 @@ check：<命令与结果；基线外失败：无 ｜ 列出>
 |---|---|---|---|
 | 写代码前 | — | — | `flow:spec-reviewer` 审 spec 一次 |
 | 每片合并前 | 有逻辑：`flow:phase-gate-reviewer` 1 次；纯展示 / 文案 / 配置：不审 | 不审，过 check 即合并 | 单向门片：`flow:phase-gate-reviewer` 1 次；其余片同二档 |
-| track 做完 | — | `flow:phase-gate-reviewer` 1 次，看本 track 所有非展示片的 PR diff | 同二档，只看合并前没审过的非展示片；没有就不审 |
+| track 做完 | — | `flow:phase-gate-reviewer` 1 次，看本 track 所有非展示片的 PR diff | 不再审（单向门片合并前都审过；其余片按双向门处理） |
 
 - **一次审阅派一个代理**，正确性、资金、安全、架构在同一次里看完；`flow:security-reviewer`、
   `flow:architecture-reviewer` 只在用户点名或审阅者建议时加派。
@@ -270,7 +276,8 @@ check：<命令与结果；基线外失败：无 ｜ 列出>
 - **new-track**：分诊卡与访谈已经答过的不再问；还需要问的不超过 3 问，用 AskUserQuestion 一次问完，不逐个问。
   spec 与 plan 起草完**一起**给用户确认一次。track 文件写在第一片的 worktree 分支上。
 - **implement**：每个任务按 §4，phase 末按 §5。track 完成后的文档同步（product.md / tech-stack.md /
-  product-guidelines.md）写进最后一片的 PR、在描述里列出，不单独停下确认；完成后的归档 / 删除提示一律按「跳过」处理，不问。
+  product-guidelines.md）写进最后一片的 PR、在描述里列出，不单独停下确认；implement 全部任务完成后的文档同步与归档 /
+  删除提示一律视为已完成 / 跳过，**不再另开提交或 PR**，也不问。
   自动选题时跳过描述行以 `⛔ blocked_by` 开头、且前置 track 未 `[x]` 的条目。
 - **setup**：由 `/flow:init` 编排（flow 的规则作为 workflow.md，不用 conductor 自带模板）。
 
