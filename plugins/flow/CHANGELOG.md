@@ -26,8 +26,10 @@
   `/flow:design-track` 不再建 track，设计包拉回 `design-system/<feature>/` 后接定形卡；`/flow:init` 不再编排 conductor setup
 - **agents**：新增 `flow:pr-reviewer`、`flow:risk-reviewer`；删除 `flow:spec-reviewer`、`flow:phase-gate-reviewer`、
   `flow:architecture-reviewer`；`flow:security-reviewer` 只用于单向门
-- **hooks**：Bash 守卫换成按 shell 词法判断、只拦致命不可逆命令的 python 实现（移植自 pxcapital；commit message /
-  heredoc 里「提到」不再误拦）；tracks.md 校验删除；旧 design 快照只拦回改、新建放行；单向门提醒文案更新
+- **hooks**：Bash 守卫改为按 shell 词法只拦致命命令（python 实现，移植自 pxcapital 并修了引号内 heredoc、`X=$(…)`
+  等误拦）：commit message / heredoc 里提到的 DROP、TRUNCATE、rm -rf 不再误拦；`git reset --hard` 与强推功能分支不再拦；
+  新增删数据卷、抹盘、Bash 写 protected_paths / worktree_links 文件的拦截；测试库口径可配 `bash_guard.test_db_pattern`；
+  需要 python3（没有则放行）。tracks.md 校验删除；旧 design 快照只拦回改、新建放行；单向门提醒文案更新
 - **不再依赖 conductor 插件**：init 不再安装 / 启用它；已有项目的 conductor 文件作为历史存档保留
 - 新增 `scripts/stats.sh`；doctor 去掉 conductor 检查，提示项目补充仍是 0.4 结构的情况
 - 升级指引见 `skills/init/upgrade.md`「从 0.4 及以前升级到 0.5」

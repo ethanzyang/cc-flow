@@ -60,7 +60,7 @@ Claude Code 开发工作流插件：**按后果分级，以上线为终点**。�
 |---|---|
 | SessionStart | 注入「本仓库走 flow」上下文；托管区版本漂移提示；未收尾提醒；worktree 软链 .env |
 | PreToolUse Edit/Write | 主 checkout 只读；旧 design 快照只读；`protected_paths`；`no_full_rewrite` |
-| PreToolUse Bash | 只拦致命、不可逆的命令（按 shell 词法判断，提到不等于执行）：删根 / 家目录 / 主 checkout / .git、对非测试库 DROP / TRUNCATE、删数据卷、force push 主干、写保护文件、抹盘 |
+| PreToolUse Bash | 只拦致命不可逆命令（按 shell 词法判断，提到不算）：删根 / 家目录 / 主 checkout / .git、非测试库 DROP / TRUNCATE、强推主干、删数据卷、抹盘；Bash 写 protected_paths / worktree_links 文件、no_full_rewrite、已入仓的旧 design 快照 |
 | PostToolUse Edit/Write | `format_on_edit`；JSON 重复键；单向门提醒 |
 | CwdChanged | 进 worktree 时软链 `worktree_links` |
 | Stop | 主 checkout 被写 / 已合并未删的 worktree |
