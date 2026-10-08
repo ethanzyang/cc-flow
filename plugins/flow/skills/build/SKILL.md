@@ -13,6 +13,7 @@ description: 实现一片（workflow §3.3–§3.5）：worktree → 测试先�
 - EnterWorktree（或 `git worktree add -b <type>/<slug> .claude/worktrees/<slug> origin/<主干>`）。
 - 大片（预计超过一个上下文能装下的）或单向门：派一个新的 agent 来做本 skill 的第 2–4 步，只给它定形卡
   （+ spec）与本 skill 的路径；主会话只收结论。小片直接在当前会话做。
+- 单向门：主会话先派一个 agent 只写核心不变量的测试（照 spec，测试应为红）并提交，再派实现 agent。
 
 ## 2. 实现
 
@@ -26,7 +27,7 @@ description: 实现一片（workflow §3.3–§3.5）：worktree → 测试先�
 ## 3. 检查
 
 - 跑 P3 的 check 命令到全绿。与本次改动无关的失败：在主干上复跑，确认是既有失败（或在 P5 里）后写进 PR 描述。
-- 改了 UI：起 dev server，截一张关键状态的截图作为证据（不做截图矩阵，除非用户要求 `/flow:visual-verify`）。
+- 改了 UI：起 dev server，截一张关键状态的截图作为证据（不做截图矩阵，除非用户要求、或定形卡的验收要求对设计稿逐屏核对——那时跑 `/flow:visual-verify`）。
 
 ## 4. 审阅（一轮）
 

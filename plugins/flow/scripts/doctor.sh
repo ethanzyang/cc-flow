@@ -13,7 +13,7 @@ w() { echo "  △ $1"; }
 
 echo "工具"
 for t in git jq; do command -v "$t" >/dev/null 2>&1 && y "$t" || n "$t 未安装（flow hook 依赖它）"; done
-command -v python3 >/dev/null 2>&1 && y python3 || w "python3 未安装：JSON 重复键检查不生效"
+command -v python3 >/dev/null 2>&1 && y python3 || n "python3 未安装：Bash 守卫与 JSON 重复键检查不生效"
 command -v gh >/dev/null 2>&1 && y gh || w "gh 未安装：/flow:closeout 的 PR 操作要手工做"
 
 echo "配置 .claude/flow.json"

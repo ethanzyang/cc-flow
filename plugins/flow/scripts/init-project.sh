@@ -153,7 +153,6 @@ do_seed() {
         "Bash(ls:*)"
       ] + $extra))
     | .permissions.deny = ((.permissions.deny // []) | addu([
-        "Bash(rm -rf:*)", "Bash(DROP TABLE:*)", "Bash(TRUNCATE:*)", "Bash(git push --force:*)",
         "Read(./.env)", "Read(./.env.*)", "Edit(./.env)", "Edit(./.env.*)", "Edit(./.github/workflows/**)"
       ]))
   ' "$settings" >"$tmp" && cat "$tmp" >"$settings"

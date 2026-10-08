@@ -215,6 +215,18 @@ rm -f "$P/dirty.txt"
 git -C "$W" commit -q --allow-empty -m wip
 git -C "$P" merge -q --no-edit feat/x
 expect_out "已合并未删的 worktree → Stop 提醒 closeout" stop-hygiene.sh "$(jq -nc --arg c "$P" '{cwd:$c}')" "/flow:closeout"
+# squash 合并：分支不是主干祖先，但远端分支已删（upstream [gone]）→ 也要提醒
+R="$TMP/remote.git"
+git init -q --bare "$R"
+git -C "$P" remote add origin "$R" 2>/dev/null || true
+git -C "$P" push -q origin main 2>/dev/null
+git -C "$P" worktree add -q -b feat/sq "$P/.claude/worktrees/sq" main
+git -C "$P/.claude/worktrees/sq" commit -q --allow-empty -m squashed-work
+git -C "$P/.claude/worktrees/sq" push -q -u origin feat/sq 2>/dev/null
+git -C "$P" push -q origin --delete feat/sq 2>/dev/null
+git -C "$P" fetch -q --prune origin 2>/dev/null
+expect_out "squash 合并后远端分支已删的 worktree → Stop 提醒" stop-hygiene.sh "$(jq -nc --arg c "$P" '{cwd:$c}')" "worktrees/sq"
+git -C "$P" worktree remove --force "$P/.claude/worktrees/sq" && git -C "$P" branch -q -D feat/sq
 echo wip >"$W/wip.txt"
 out=$(printf '%s' "$(jq -nc --arg c "$W" '{cwd:$c}')" | "$S/stop-hygiene.sh")
 case "$out" in *"当前 worktree 有未提交"*) bad "Stop 不报干活中的 worktree 变更" "$out" ;; *) ok "Stop 不报干活中的 worktree 变更" ;; esac
@@ -260,7 +272,7 @@ jq -e '.model == "x" and (.permissions.allow | index("Bash(make:*)") == 0) and (
   "$I/.claude/settings.json" >/dev/null && ok "settings 合并：保留已有键、保序去重、加插件" || bad "settings 合并" "$(cat "$I/.claude/settings.json")"
 grep -qxF '.claude/worktrees/' "$I/.gitignore" && grep -qxF 'node_modules/' "$I/.gitignore" && ok ".gitignore 追加且保留原内容" || bad ".gitignore 追加且保留原内容"
 "$S/init-project.sh" seed "$I" >/dev/null 2>&1
-[ "$(jq '.permissions.deny | length' "$I/.claude/settings.json")" = 9 ] && ok "重跑 seed settings 幂等" || bad "重跑 seed settings 幂等"
+[ "$(jq '.permissions.deny | length' "$I/.claude/settings.json")" = 6 ] && ok "重跑 seed settings 幂等（基线只拒读改 .env 与 CI，致命命令交给 Bash 守卫）" || bad "重跑 seed settings 幂等" "$(jq -c .permissions.deny "$I/.claude/settings.json")"
 "$S/doctor.sh" "$I" >/dev/null 2>&1 && bad "还没 finish → doctor 不通过" || ok "还没 finish → doctor 不通过"
 git -C "$I" add -A && git -C "$I" commit -qm "seed"
 

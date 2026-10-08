@@ -38,7 +38,7 @@ else
   add "⚠️  缺 conductor/workflow.md（flow 规则正文）：跑 /flow:init。"
 fi
 
-command -v python3 >/dev/null 2>&1 || add "⚠️  本机没装 python3，flow 的 JSON 重复键检查不会生效。"
+command -v python3 >/dev/null 2>&1 || add "⚠️  本机没装 python3，flow 的 Bash 守卫与 JSON 重复键检查都不会生效。"
 
 hyg=$(flow_hygiene_report "$cwd" full 2>/dev/null)
 [ -n "$hyg" ] && add "$hyg"

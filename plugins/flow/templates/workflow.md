@@ -69,7 +69,7 @@
 
 ### 3.3 实现（`/flow:build`）
 
-- 一片一个干净的上下文（新 session 或新 agent），在 worktree 里做；输入只有定形卡（单向门加 spec）。
+- 在 worktree 里做；输入只有定形卡（单向门加 spec）。小片可以在当前会话做；大片或单向门交给一个干净的上下文（新 agent / 新 session），主会话只收结论。
 - 计算、判定、状态流转、账务、鉴权、数据读写：先写失败测试再实现。纯展示改动不强制，附截图即可。
 - 外部系统的 fixture 从真实响应录制（只读 key / testnet），不手写推测的格式和错误码。
 - 完成前跑 **P3 的 check 命令**到全绿。与本次改动无关的既有失败：在主干上复跑确认后写进 PR 描述（P5）。
@@ -95,7 +95,7 @@
 - **双向门**：审阅无 BLOCKER → 由模型合并（`gh pr merge --squash --match-head-commit <审过的 sha>`）→
   按 **P2** 部署 → 冒烟检查 → 告诉用户去哪里试。
 - **单向门**：PR 由用户合并。涉及下单 / 资金的，合并前在 testnet 或 dry-run 跑通（P2）。
-- 合并后立刻清理：删远端分支、`git worktree remove`、`git branch -d`；叠链 PR 先 `gh pr edit --base <主干>`。
+- 合并后立刻清理：删远端分支、`git worktree remove`、`git branch -D`（squash 合并后只能 -D）；叠链 PR 先 `gh pr edit --base <主干>`。
 - 用户试用的反馈就是下一片的输入。
 
 ### 3.6 断路器

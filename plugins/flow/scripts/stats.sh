@@ -10,7 +10,7 @@ days=14
 proj=""
 while [ $# -gt 0 ]; do
   case "$1" in
-    --days) days="$2"; shift 2 ;;
+    --days) days="${2:?--days 后面要跟天数}"; shift 2 ;;
     -*) echo "unknown flag: $1" >&2; exit 64 ;;
     *) proj="$1"; shift ;;
   esac
