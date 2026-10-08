@@ -658,8 +658,8 @@ def check_writes(targets, shell_vars, cwd):
             if fnmatch.fnmatchcase(path, g) or fnmatch.fnmatchcase(real, g):
                 raise Blocked(f"疑似用 Bash 写入 {g}（目标：{path}）。{why} 请用 Edit 工具做局部修改。")
         if (DESIGN_SNAPSHOT.search(path) or DESIGN_SNAPSHOT.search(real)) and os.path.exists(path):
-            raise Blocked(f"conductor/tracks/*/design*/ 入仓后是只读历史快照；"
-                          f"新建文件可以，回改不行（目标：{path}）。")
+            raise Blocked(f"conductor/tracks/*/design*/ 是只读立项快照（workflow §3.2）；"
+                          f"新建文件可以，回改不行（目标：{path}）。要改设计请改设计真相源再重新 /flow:design-track。")
 
 
 def write_targets(argv, shell_vars, cwd):

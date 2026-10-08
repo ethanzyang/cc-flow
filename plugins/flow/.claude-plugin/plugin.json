@@ -1,17 +1,18 @@
 {
   "name": "flow",
-  "version": "0.5.0",
-  "description": "按后果分级、以上线为终点的 Claude Code 开发工作流：定形卡 → 小片实现 → 一轮审阅 → 合并上线 → 用户实测；单向门（动钱、记账口径、密钥、数据迁移）才走重路径。主 checkout 只读 + worktree，Bash 守卫只拦致命命令。",
+  "version": "0.6.0",
+  "description": "以 conductor 为底座的 Claude Code 开发工作流：分诊卡 → 一档 /flow:spec 或二三档 conductor track（plan 按能上线的小片排）→ 一个改动审一次 → 每片合并上线、用户实测；碰单向门（动钱、记账口径、密钥、数据迁移）才走三档。Claude Design 设计环节、主 checkout 只读 + worktree、Bash 守卫只拦致命命令。",
   "author": {
     "name": "ethanzyang"
   },
   "repository": "https://github.com/ethanzyang/cc-flow",
   "keywords": [
     "workflow",
-    "shaping",
+    "conductor",
+    "triage",
     "small-batches",
     "review",
     "worktree",
-    "one-way-door"
+    "claude-design"
   ]
 }

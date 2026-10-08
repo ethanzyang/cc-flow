@@ -37,11 +37,20 @@ else
   [ "$(jq '(.sensitive_paths // []) | length' "$cfg")" -gt 0 ] || w "sensitive_paths 为空：碰到单向门相关文件不会有机械提醒（没有单向门可忽略）"
 fi
 
-echo "规则正文"
-[ -f "$proj/conductor/workflow.md" ] && y "conductor/workflow.md" || n "conductor/workflow.md 缺失（flow 规则正文）：跑 /flow:init"
-[ -d "$proj/.conductor_templates" ] && w ".conductor_templates/ 还在（旧版接入时的临时模板）：init-project.sh finish 会删掉它"
+echo "conductor"
+for f in conductor/product.md conductor/tech-stack.md conductor/workflow.md conductor/tracks.md; do
+  [ -f "$proj/$f" ] && y "$f" || n "$f 缺失（conductor 的 new-track / implement 会直接中止）"
+done
+cstate=$("$FLOW_ROOT/scripts/init-project.sh" status "$proj" 2>/dev/null | sed -n 's/^conductor=//p')
+case "$cstate" in
+  real) y "conductor setup 已完整跑过" ;;
+  flow-seeded) n "conductor setup 是 flow 0.1.0 直接标成完成的，产品定义访谈没跑过：重跑 /flow:init 补做" ;;
+  none) n "没跑过 conductor setup：跑 /flow:init" ;;
+  *) n "conductor setup 没跑完（${cstate}）：跑 /flow:init 续上" ;;
+esac
+[ -d "$proj/.conductor_templates" ] && w ".conductor_templates/ 还在（接入时的临时模板）：init-project.sh finish 会删掉它"
 if [ -f "$proj/conductor/workflow.md" ] && grep -q '^### P2 层划分' "$proj/conductor/workflow.md"; then
-  w "项目补充还是 0.4 的结构（P2 层划分）：0.5 起 P1 = 单向门清单、P2 = 上线，见 /flow:init 的 upgrade.md"
+  w "项目补充还是 0.4 结构：P1 改单向门清单、P2 改上线，见 upgrade.md"
 fi
 
 echo "托管区"
@@ -70,13 +79,20 @@ if [ -f "$st" ] && jq -e '.enabledPlugins["flow@cc-flow"] == true' "$st" >/dev/n
 else
   n "settings.json 没启用 flow@cc-flow（队友 clone 后不会被提示安装）"
 fi
-grep -qxF '.claude/worktrees/' "$proj/.gitignore" 2>/dev/null && y ".gitignore 忽略 .claude/worktrees/" || n ".gitignore 缺 .claude/worktrees/（worktree 会被当成未跟踪文件）"
-if grep -q '/flow:shape' "$proj/CLAUDE.md" 2>/dev/null; then
-  y "CLAUDE.md 含 flow 段"
-elif grep -q '/flow:triage\|/triage' "$proj/CLAUDE.md" 2>/dev/null; then
-  w "CLAUDE.md 还是旧版 flow 段（分诊 / 三档）：换成 templates/CLAUDE.flow-section.md"
+if [ -f "$st" ] && jq -e '.enabledPlugins["conductor@conductor-cc"] == true' "$st" >/dev/null 2>&1; then
+  y "settings.json 启用 conductor@conductor-cc"
+elif [ -f "$st" ] && jq -e '.enabledPlugins["conductor@conductor-cc"] == false' "$st" >/dev/null 2>&1; then
+  n "settings.json 把 conductor@conductor-cc 关掉了（flow 0.6 的 track 靠 /conductor:new-track 与 /conductor:implement）"
 else
-  w "CLAUDE.md 没有 flow 段（模型不知道先定形）"
+  w "settings.json 没启用 conductor@conductor-cc（队友 clone 后不会被提示安装 conductor）"
+fi
+grep -qxF '.claude/worktrees/' "$proj/.gitignore" 2>/dev/null && y ".gitignore 忽略 .claude/worktrees/" || n ".gitignore 缺 .claude/worktrees/（worktree 会被当成未跟踪文件）"
+if grep -q '/flow:triage' "$proj/CLAUDE.md" 2>/dev/null; then
+  y "CLAUDE.md 含 flow 段"
+elif grep -q '/flow:shape' "$proj/CLAUDE.md" 2>/dev/null; then
+  w "CLAUDE.md 还是 0.5 的 flow 段（定形 / build）：换成 templates/CLAUDE.flow-section.md"
+else
+  w "CLAUDE.md 没有 flow 段（模型不知道先分诊）"
 fi
 if [ -f "$proj/CLAUDE.md" ]; then
   lines=$(wc -l <"$proj/CLAUDE.md" | tr -d ' ')

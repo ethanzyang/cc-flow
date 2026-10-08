@@ -10,7 +10,7 @@
     {
       "name": "flow",
       "source": "./plugins/flow",
-      "description": "按后果分级、以上线为终点的开发工作流：/flow:init 接入，/flow:shape 定形，/flow:build 一片一片做，/flow:closeout 上线。"
+      "description": "以 conductor 为底座的开发工作流：/flow:init 接入，/flow:triage 分诊，一档 /flow:spec、二三档 /conductor:new-track + /conductor:implement 按小片上线，/flow:closeout 收尾。"
     }
   ]
 }

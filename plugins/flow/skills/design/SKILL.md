@@ -6,7 +6,7 @@ disable-model-invocation: true
 
 仓库是设计的唯一真相源，每个人的 Claude Design 项目只是个人副本（账号私有、无法共享，所以用 git
 合流）。规矩全文在设计目录的 `SYNC.md`，这里是执行步骤。**新功能的设计不走这里**——
-`/flow:design-track <feature>` 会写 BRIEF 推给你、画完再拉回接上实现。
+`/flow:design-track <feature>` 会写 BRIEF 推给你、画完再拉回接进 track 立项（workflow §3.2）。
 
 ## 0. 前置（push / pull 共用）
 
@@ -41,7 +41,7 @@ disable-model-invocation: true
    claude.ai 项目导出 ZIP 补）、超过 256 KiB 的文件（记下来，建议云端拆成多个 `screen-*.html`）。
 3. 去噪：diff 只有 SVG 自闭合标签被展开的文件 `git checkout --` 丢弃。动了 token 文件又有页面改动 →
    拆两个 PR，先 token。
-4. 分支 `design/pull-<日期>`，提交 `design(system): pull from Claude Design`，开 PR，描述列出拉回与跳过的文件。
+4. 分支 `design/pull-<日期>`，提交 `docs(design): pull from Claude Design`，开 PR，描述列出拉回与跳过的文件。
 
 ## 汇报
 

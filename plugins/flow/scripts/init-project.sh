@@ -1,18 +1,22 @@
 #!/usr/bin/env bash
-# /flow:init 的确定性部分：
+# /flow:init 的确定性部分（flow 0.6：conductor 为底座），分三步，夹着 conductor 的 /conductor:setup 用：
 #
-#   status <目录>            只读体检：git 状态 / 新旧项目 / flow 状态（key=value）
+#   status <目录>            只读体检：git 状态 / 新旧项目 / conductor 状态 / flow 状态（key=value）
 #   seed   <目录> [--main X] [--allow '<permissions.allow 条目>']...
-#                            放 flow 的规则与接入配置：conductor/workflow.md（托管区 + 项目补充骨架）、
-#                            dev-docs/TEAM_GUIDE.md、CLAUDE.md（不存在时）、.gitignore、settings.json。不写 flow.json。
+#                            conductor setup 之前：放 flow 的规则与接入配置——conductor/workflow.md（托管区 +
+#                            项目补充骨架）、dev-docs/TEAM_GUIDE.md、conductor/backlog.md、CLAUDE.md（不存在时）、
+#                            .gitignore、settings.json（flow + conductor 两个插件）。
+#                            conductor/workflow.md 同内容放一份到 .conductor_templates/workflow.md（只在本地排除）
+#                            ——conductor setup 2.5 会优先拷它，于是拷进去的是 flow 的规则。
+#                            不建 product / tech-stack 等文档（那是 conductor 访谈的产物），不写 flow.json。
 #   design <目录> [--dir design-system]
 #                            设计模块：设计目录骨架（README）+ 托管的 SYNC.md（含项目补充 D1–D3）+
 #                            gitignore .project-id；已有 flow.json 时顺带登记 design.dir。
 #   finish <目录> [--rules <规则 JSON 文件>] [--main X]
-#                            填完项目补充之后：最后写 .claude/flow.json（模板 + 规则）——它一出现 flow 的 hook
-#                            就生效，所以必须是最后一步，且用脚本写（hook 生效后主干上的 Edit 会被拦）。
+#                            conductor setup 之后：清掉 .conductor_templates/，缺 tracks.md 则补空的，
+#                            最后写 .claude/flow.json（模板 + 规则）——它一出现 flow 的 hook 就生效，
+#                            所以必须是最后一步，且用脚本写（hook 生效后主干上的 Edit 会被拦）。
 #
-# 规则正文放在 conductor/workflow.md 是历史路径（flow ≤0.4 依赖 conductor 插件），0.5 起不再依赖 conductor。
 # 原则：只建缺失文件、从不覆盖；settings 合并保序去重、不删用户已有条目。
 set -u
 . "$(dirname "$0")/lib.sh"
@@ -62,7 +66,7 @@ detect_main() {
 
 # ---------------------------------------------------------------- status
 do_status() {
-  local git_state maturity flow wf_state wf_ver files code
+  local git_state maturity cstate flow wf_state wf_ver files code
   if ! git -C "$target" rev-parse --git-dir >/dev/null 2>&1; then
     git_state=none
   elif git -C "$target" rev-parse -q --verify HEAD >/dev/null 2>&1; then
@@ -71,7 +75,9 @@ do_status() {
     git_state=unborn
   fi
 
-  # 新/旧项目：忽略 flow 自己生成的东西和通用文档，剩下有依赖清单或源码就算旧项目。
+  # 新/旧项目：忽略 flow 与 conductor 自己生成的东西和通用文档，剩下有依赖清单或源码就算旧项目。
+  # （conductor 自己的判定把「有 .git」就当旧项目，会让刚 git init 的空目录跳过「你想做什么」
+  #  与需求访谈——所以由 flow 先判、再明确告诉 conductor。）
   if [ "$git_state" = none ]; then
     files=$(cd "$target" && find . -type f -not -path './.git/*' -not -path '*/node_modules/*' 2>/dev/null | sed 's#^\./##')
   else
@@ -80,6 +86,28 @@ do_status() {
   code=$(printf '%s\n' "$files" | grep -vE '^(\.claude/|\.conductor_templates/|conductor/|dev-docs/|docs/specs/|CLAUDE\.md$|AGENTS\.md$|README[^/]*$|LICENSE[^/]*$|\.gitignore$|\.gitattributes$|\.editorconfig$)' |
     grep -E '(^|/)(package\.json|go\.mod|requirements\.txt|pyproject\.toml|Cargo\.toml|pom\.xml|build\.gradle(\.kts)?|Gemfile|composer\.json|pubspec\.yaml|Package\.swift)$|\.(go|py|js|jsx|ts|tsx|mjs|cjs|rs|java|kt|rb|php|swift|dart|c|cc|cpp|h|hpp|cs|vue|svelte|scala|ex|exs|sh)$' | head -1)
   if [ -n "$code" ]; then maturity=brownfield; else maturity=greenfield; fi
+
+  # conductor setup 状态：none / partial:<step> / real / flow-seeded
+  # flow-seeded = flow 0.1.0 直接写了「已完成」、其实没跑过访谈（setup_state 由 adopt 提交引入，
+  # 且历史里没有 conductor(setup) 提交）
+  local st="$target/conductor/setup_state.json" step added
+  if [ ! -f "$st" ]; then
+    cstate=none
+  else
+    step=$(jq -r '.last_successful_step // ""' "$st" 2>/dev/null)
+    if [ "$step" != "3.3_initial_track_generated" ]; then
+      cstate="partial:$step"
+    else
+      cstate=real
+      if [ "$git_state" = commits ]; then
+        added=$(git -C "$target" log --diff-filter=A --format=%s -- conductor/setup_state.json 2>/dev/null | tail -1)
+        if [ "$added" = "chore: adopt flow workflow" ] &&
+          ! git -C "$target" log --format=%s 2>/dev/null | grep -q '^conductor(setup)'; then
+          cstate=flow-seeded
+        fi
+      fi
+    fi
+  fi
 
   if [ -f "$target/.claude/flow.json" ]; then flow=adopted; else flow=none; fi
 
@@ -93,6 +121,7 @@ do_status() {
 
   echo "git=$git_state"
   echo "maturity=$maturity"
+  echo "conductor=$cstate"
   echo "flow=$flow"
   echo "workflow=$wf_state"
   echo "main=$(detect_main)"
@@ -106,12 +135,33 @@ do_seed() {
   # 1) 托管文件：conductor/workflow.md（+ 项目补充骨架）与 dev-docs/TEAM_GUIDE.md
   "$FLOW_ROOT/scripts/sync-managed.sh" --allow-main "$target" || true
 
-  # 2) CLAUDE.md：不存在才从模板生成（flow 段内联）；已存在则由模型插入 / 替换 flow 段
+  # 2) 给 conductor setup 2.5 用的模板：同内容；只在本地排除，不进提交
+  if [ -f "$target/conductor/workflow.md" ] && grep -q 'flow:managed:begin' "$target/conductor/workflow.md"; then
+    mkdir -p "$target/.conductor_templates"
+    cp "$target/conductor/workflow.md" "$target/.conductor_templates/workflow.md"
+    created ".conductor_templates/workflow.md（给 conductor setup 2.5 拷贝；finish 时删除）"
+    local excl
+    excl=$(git -C "$target" rev-parse --git-path info/exclude 2>/dev/null)
+    if [ -n "$excl" ]; then
+      case "$excl" in /*) ;; *) excl="$target/$excl" ;; esac
+      mkdir -p "$(dirname "$excl")"
+      grep -qxF '.conductor_templates/' "$excl" 2>/dev/null || printf '%s\n' '.conductor_templates/' >>"$excl"
+    fi
+  fi
+
+  # 3) conductor/backlog.md（flow 的概念，conductor 不建）
+  if [ -e "$target/conductor/backlog.md" ]; then kept "conductor/backlog.md"; else
+    mkdir -p "$target/conductor"
+    cp "$tpl/conductor/backlog.md" "$target/conductor/backlog.md"
+    created "conductor/backlog.md"
+  fi
+
+  # 4) CLAUDE.md：不存在才从模板生成（flow 段内联）；已存在则由模型插入 / 替换 flow 段
   if [ -e "$target/CLAUDE.md" ]; then
-    if grep -q '/flow:shape' "$target/CLAUDE.md"; then
+    if grep -q '/flow:triage' "$target/CLAUDE.md"; then
       kept "CLAUDE.md（已含 flow 段）"
-    elif grep -q '/flow:triage\|/triage' "$target/CLAUDE.md"; then
-      echo "待替换  CLAUDE.md —— 含旧版 flow 段（分诊 / 三档 / 停点 5 处）：用 templates/CLAUDE.flow-section.md 替换工作流段与分支段（{{MAIN}} → ${main}）"
+    elif grep -q '/flow:shape' "$target/CLAUDE.md"; then
+      echo "待替换  CLAUDE.md —— 含 0.5 的 flow 段（定形 / build）：用 templates/CLAUDE.flow-section.md 替换工作流段与分支段（{{MAIN}} → ${main}）"
     else
       echo "待插入  CLAUDE.md —— 已存在但没有 flow 段：把 templates/CLAUDE.flow-section.md 插到命令段之后（{{MAIN}} → ${main}）"
     fi
@@ -125,7 +175,7 @@ do_seed() {
     created "CLAUDE.md（含 {{NAME}} 等占位符，待填）"
   fi
 
-  # 3) .gitignore
+  # 5) .gitignore
   touch "$target/.gitignore"
   local line
   for line in ".claude/worktrees/" ".claude/settings.local.json"; do
@@ -135,7 +185,8 @@ do_seed() {
     fi
   done
 
-  # 4) .claude/settings.json：插件自动安装 + 权限基线（不再添加 conductor；已有条目不删）
+  # 6) .claude/settings.json：插件自动安装（flow + conductor）+ 权限基线（已有条目不删）。
+  #    deny 基线只拒读改 .env 与 CI 配置；致命命令交给 flow 的 Bash 守卫按词法判（前缀 deny 误拦太多）。
   mkdir -p "$target/.claude"
   local settings="$target/.claude/settings.json" tmp
   [ -s "$settings" ] || echo '{}' >"$settings"
@@ -143,9 +194,10 @@ do_seed() {
   jq --argjson extra "$extra_allow" '
     def addu($xs): reduce $xs[] as $x (.; if any(.[]; . == $x) then . else . + [$x] end);
     .extraKnownMarketplaces = ((.extraKnownMarketplaces // {}) + {
-        "cc-flow": {source: {source: "github", repo: "ethanzyang/cc-flow"}}
+        "cc-flow": {source: {source: "github", repo: "ethanzyang/cc-flow"}},
+        "conductor-cc": {source: {source: "git", url: "https://github.com/pilotparpikhodjaev/conductor_cc.git"}}
       })
-    | .enabledPlugins = ((.enabledPlugins // {}) + {"flow@cc-flow": true})
+    | .enabledPlugins = ((.enabledPlugins // {}) + {"flow@cc-flow": true, "conductor@conductor-cc": true})
     | .permissions = (.permissions // {})
     | .permissions.allow = ((.permissions.allow // []) | addu([
         "Bash(git status:*)", "Bash(git diff:*)", "Bash(git log:*)", "Bash(git branch:*)",
@@ -161,7 +213,7 @@ do_seed() {
 
   echo
   echo "主干：$main"
-  echo "下一步：填 conductor/workflow.md 文末项目补充 P1–P6 与 CLAUDE.md，然后 finish。"
+  echo "下一步：跑 /conductor:setup（按 /flow:init 的覆盖约定），完成后填项目补充 P1–P6，再 finish。"
 }
 
 # ---------------------------------------------------------------- design
@@ -209,7 +261,7 @@ do_design() {
 do_finish() {
   main=$(detect_main)
 
-  # 1) 旧版（≤0.4）接入时给 conductor 用的临时模板，残留就清掉
+  # 1) 清掉给 conductor setup 用的模板
   if [ -d "$target/.conductor_templates" ]; then
     rm -f "$target/.conductor_templates/workflow.md"
     rmdir "$target/.conductor_templates" 2>/dev/null ||
@@ -217,14 +269,21 @@ do_finish() {
     [ -d "$target/.conductor_templates" ] || echo "已删除  .conductor_templates/"
   fi
 
-  # 2) workflow.md 必须带托管标记（被别的工具覆盖、或手写的旧文件）——兜底报出来，不激活
+  # 2) workflow.md 必须带托管标记：conductor 2.5 若没拷 flow 的模板而用了自带的、或是手写的旧文件，
+  #    都会丢标记——兜底报出来，不激活
   if [ ! -f "$target/conductor/workflow.md" ] || ! grep -q 'flow:managed:begin' "$target/conductor/workflow.md"; then
-    echo "异常    conductor/workflow.md 缺失或没有 flow 托管标记。" >&2
-    echo "        处理：已有手写文件的改名为 workflow.pre-flow.md 后重跑 seed，再把项目补充填回去。" >&2
+    echo "异常    conductor/workflow.md 缺失或没有 flow 托管标记（conductor setup 可能用了自带模板覆盖）。" >&2
+    echo "        处理：改名为 workflow.pre-flow.md 后重跑 seed，再把项目补充填回去。" >&2
     return 1
   fi
 
-  # 3) 最后写 flow.json
+  # 3) 首个 track 没建时，tracks.md 可能不存在
+  if [ -e "$target/conductor/tracks.md" ]; then kept "conductor/tracks.md"; else
+    cp "$tpl/conductor/tracks.md" "$target/conductor/tracks.md"
+    created "conductor/tracks.md（空）"
+  fi
+
+  # 4) 最后写 flow.json
   if [ -e "$target/.claude/flow.json" ]; then
     kept ".claude/flow.json"
     [ -n "$rules" ] && echo "注意    已有 flow.json，--rules 未应用；要改规则请在 worktree 里编辑它。"

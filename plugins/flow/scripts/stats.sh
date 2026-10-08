@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# 流程度量（workflow §7）：最近 N 天主干上的提交与合并的 PR。只读，不改任何东西。
+# 流程度量（workflow §8）：最近 N 天主干上的提交与合并的 PR。只读，不改任何东西。
 # 用法：stats.sh [项目目录] [--days 14]
 #   git 能算的：只改文档的提交占比、feat 之后 48 小时内的 fix。
 #   gh 已登录时再算：PR 从首个提交到合并的时长、非测试代码行数、审阅轮数（PR 评论里的 VERDICT 行数）。
@@ -25,7 +25,7 @@ since=$(date -u -v-"${days}"d +%Y-%m-%d 2>/dev/null || date -u -d "$days days ag
 ref="origin/$main"
 git -C "$proj" rev-parse -q --verify "$ref" >/dev/null 2>&1 || ref="$main"
 
-# 文档 / 记账类路径：只动这些的提交算「只改文档」
+# 文档 / 记账类路径：只动这些的提交算「只改文档」（conductor/ 下的 tracks.md、plan.md、spec.md 都算）
 DOC_RE='(\.md$|^conductor/|^docs/|^dev-docs/)'
 
 median() {
