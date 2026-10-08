@@ -21,7 +21,7 @@
 | **设计真相源** | 本目录 | 设计改动只在这里落地 |
 | 个人工作副本 | 各自的 Claude Design 设计系统项目 | 随便画，但改完要拉回来 |
 | 生产实现 | 见 D2 | 从真相源派生，不反向定义 |
-| 历史快照 | `conductor/tracks/*/design*/` | **只读**（flow hook 强制）——回答"当时按哪版稿实现的" |
+| feature 设计包 | 本目录 `<feature>/` | 随 PR 入仓；git 历史回答"当时按哪版稿实现的"（旧版 flow 的 `conductor/tracks/*/design*/` 快照只读保留） |
 
 ---
 
@@ -60,14 +60,13 @@
 
 **只拉你实际改过的文件，不要整树同步。** 写回走 worktree 分支 + PR（主 checkout 只读）。
 
-### 4.1 拉回一个 feature 设计包（由 `/flow:design-track <feature>` 在立项时完成）
+### 4.1 拉回一个 feature 设计包（由 `/flow:design-track <feature>` 完成）
 
 1. **命名约定**：云端项目里的 feature 文件夹名 = 本目录下的 `<feature>/`（小写下划线，如
    `usage_export`）。**在云端开画时就按这个名字建文件夹**，拉回时零改名。
-2. **齐装** = 四件套（`BRIEF.md` / `SPEC.md` / `INVENTORY.md` / `DECISIONS.md`）+ `tokens.css` +
-   高保真稿（`*.dc.html` 或 `screen-*.html`）+ `assets/`。四件套缺件的先在云端补齐——
-   `/flow:design-track` 会拒绝缺件的包。
-3. 设计包与 track 快照、spec/plan 进**同一个立项 PR**；设计过程动了公共 token 就按 §5 先拆出单独 PR。
+2. **最少要有** = 高保真稿（`*.dc.html` 或 `screen-*.html`）+ `DECISIONS.md`；`BRIEF.md` 由第一次运行写好；
+   `SPEC.md` / `INVENTORY.md` / `tokens.css` / `assets/` 按需。缺稿或缺 DECISIONS 的包 `/flow:design-track` 会停下请你补。
+3. 设计包单独一个 PR 入仓，之后按定形卡分片实现；设计过程动了公共 token 就按 §5 先拆出单独 PR。
 
 ### 4.2 硬限制
 
@@ -94,7 +93,7 @@
 
 ---
 
-## 6. Track 收尾时的设计侧动作（对接 workflow §6）
+## 6. 合并后的设计侧动作（对接 workflow §3.5）
 
 1. **token / 组件演化随实现 PR 落回本目录**——不是收尾后补。有 token 镜像测试的项目（D2）会直接
    拦住漂移；页面稿 / 组件类的演化没有测试钉住，靠 review 时对照 PR diff 检查本目录是否同步。

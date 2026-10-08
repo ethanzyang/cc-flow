@@ -3,6 +3,37 @@
 版本号即 `plugins/flow/.claude-plugin/plugin.json` 的 `version`，也是各项目 `conductor/workflow.md`
 托管区标记里的版本。**不改 version 的提交，已安装的项目拿不到。**
 
+## 0.5.0 — 2026-10-08
+
+**按后果分级，以上线为终点。** 0.1–0.4 在两个项目上实测：审阅与验收占子代理输出 token 的 44%、实现只占 26%；
+26 个 track 的 spec 审阅首轮全部 FAIL；合并的 PR 里一半以上是记账 / 文档 PR；上线后的问题 7/9 来自真实数据、
+集成与产品理解，审阅原理上看不到。用户多次反馈「一个简单功能做很久、一直在打转」。0.5 把默认路径改轻，重路径只留给
+错了收不回来的改动。
+
+- **流程**（workflow.md 重写，334 → 约 160 行）：
+  - 两种模式：讨论模式只出方案、不写代码；交付模式从定形卡开始
+  - 两类门取代一二三档与 A–D 车道：判据是「错了 revert 能不能就没事」，不按层数 / 文件数
+  - 工作单元是竖切小片（一片一个 PR、非测试代码约 ≤400 行、端到端可用、能单独上线），取代 track + 按层的 phase
+  - 停点从 5 处减到 3 处：定形卡 / 单向门 PR 合并 / 上线后请用户试；等用户时发通知
+  - 审阅：双向门每个 PR 一轮；单向门写代码前一轮风险审阅 + PR 终审加安全审阅；严重度按后果定，只有 BLOCKER 挡合并；
+    不做变异分析、不做 spec 多轮审阅、不做每段验收
+  - 断路器：超胃口 2 倍 / 审阅两轮仍有 BLOCKER / 同一问题纠正两次 → 停下带选项找用户
+  - 删掉记账：plan 勾选与 SHA 回填、tracks.md、metadata、baseline.md、阶段报告、HANDOFF；状态在 GitHub 和 git 里
+  - 流程类教训当天改 workflow.md，memory 只留指针
+  - 项目补充改结构：P1 单向门清单、P2 上线（原「层划分」删除）、P3 命令加 check
+- **skills**：新增 `/flow:shape`（定形卡）、`/flow:build`（实现一片到合并）、`/flow:stats`（度量）；删除
+  `/flow:triage`、`/flow:spec`；`/flow:closeout` 加上部署 + 冒烟 + 请用户试、去掉记账；`/flow:visual-verify` 改为按需；
+  `/flow:design-track` 不再建 track，设计包拉回 `design-system/<feature>/` 后接定形卡；`/flow:init` 不再编排 conductor setup
+- **agents**：新增 `flow:pr-reviewer`、`flow:risk-reviewer`；删除 `flow:spec-reviewer`、`flow:phase-gate-reviewer`、
+  `flow:architecture-reviewer`；`flow:security-reviewer` 只用于单向门
+- **hooks**：Bash 守卫改为按 shell 词法只拦致命命令（python 实现，移植自 pxcapital 并修了引号内 heredoc、`X=$(…)`
+  等误拦）：commit message / heredoc 里提到的 DROP、TRUNCATE、rm -rf 不再误拦；`git reset --hard` 与强推功能分支不再拦；
+  新增删数据卷、抹盘、Bash 写 protected_paths / worktree_links 文件的拦截；测试库口径可配 `bash_guard.test_db_pattern`；
+  需要 python3（没有则放行）。tracks.md 校验删除；旧 design 快照只拦回改、新建放行；单向门提醒文案更新
+- **不再依赖 conductor 插件**：init 不再安装 / 启用它；已有项目的 conductor 文件作为历史存档保留
+- 新增 `scripts/stats.sh`；doctor 去掉 conductor 检查，提示项目补充仍是 0.4 结构的情况
+- 升级指引见 `skills/init/upgrade.md`「从 0.4 及以前升级到 0.5」
+
 ## 0.4.1 — 2026-09-28
 
 **guard-bash 不再误拦只读和正常的 git 命令。**之前只要命令里出现 `>`，同时 `conductor/tracks/` 后面任意位置

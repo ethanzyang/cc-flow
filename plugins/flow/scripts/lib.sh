@@ -72,9 +72,9 @@ flow_ver_cmp() {
 # flow_hygiene_report <当前工作目录> [full]
 #   full：连当前 worktree 的未提交变更也报（SessionStart 用）；Stop 每轮都跑，干活中途有未提交
 #   变更是常态，不报，只报真正的「没收尾」。
-# 覆盖 workflow §6 收尾三连与「主 checkout 只读」的 Bash 绕过面（Edit 有 hook 拦，Bash 重定向没有）。
+# 覆盖 workflow §3.5 合并后清理与「主 checkout 只读」的 Bash 绕过面（Edit 有 hook 拦，Bash 重定向没有）。
 flow_hygiene_report() {
-  local cwd="${1:-$PWD}" mode="${2:-}" root main base changes merged basesha stale cur
+  local cwd="${1:-$PWD}" mode="${2:-}" root main base changes merged gone basesha stale cur
   main=$(flow_main_branch)
   root=$(flow_main_root "$cwd") || return 0
   [ -n "$root" ] || return 0
@@ -109,6 +109,10 @@ flow_hygiene_report() {
     base="$main"
   fi
   merged=$(git -C "$root" branch --merged "$base" --format='%(refname:short)' 2>/dev/null)
+  # squash 合并的分支永远不是主干的祖先：远端分支已删（upstream 显示 [gone]）也算已并入
+  gone=$(git -C "$root" for-each-ref --format='%(refname:short)%09%(upstream:track)' refs/heads 2>/dev/null |
+    awk -F'\t' '$2 == "[gone]" { print $1 }')
+  merged=$(printf '%s\n%s\n' "$merged" "$gone" | grep . || true)
   basesha=$(git -C "$root" rev-parse "$base" 2>/dev/null)
   [ -n "$merged" ] || return 0
   stale=$(git -C "$root" worktree list --porcelain 2>/dev/null |
@@ -120,7 +124,7 @@ flow_hygiene_report() {
       printf '    %s (%s)\n' "$wt" "$br"
     done)
   if [ -n "$stale" ]; then
-    echo "⚠️  分支已并入 $base 但 worktree 未删（workflow §6，跑 /flow:closeout）:"
+    echo "⚠️  分支已并入 ${base}（或远端分支已删）但 worktree 未删（workflow §3.5，跑 /flow:closeout）:"
     printf '%s\n' "$stale"
   fi
   return 0
