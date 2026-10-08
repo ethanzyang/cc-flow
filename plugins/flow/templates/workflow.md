@@ -93,7 +93,8 @@
 ### 3.5 合并与上线（`/flow:closeout`）
 
 - **双向门**：审阅无 BLOCKER → 由模型合并（`gh pr merge --squash --match-head-commit <审过的 sha>`）→
-  按 **P2** 部署 → 冒烟检查 → 告诉用户去哪里试。
+  按 **P2** 部署 → 冒烟检查 → 告诉用户去哪里试。auto 模式会把「模型合并自己的 PR」判为自我批准拦下：要让模型合并，
+  用户需在 `permissions.allow` 加 `Bash(gh pr merge:*)`；没加就把合并命令交给用户并发通知，不要换写法绕过。
 - **单向门**：PR 由用户合并。涉及下单 / 资金的，合并前在 testnet 或 dry-run 跑通（P2）。
 - 合并后立刻清理：删远端分支、`git worktree remove`、`git branch -D`（squash 合并后只能 -D）；叠链 PR 先 `gh pr edit --base <主干>`。
 - 用户试用的反馈就是下一片的输入。

@@ -41,7 +41,8 @@ description: 实现一片（workflow §3.3–§3.5）：worktree → 测试先�
 ## 5. 合并与上线
 
 - **双向门**：无 BLOCKER → `gh pr merge <n> --squash --match-head-commit <审过的 sha>` → `/flow:closeout`
-  （部署、冒烟、清理、请用户试）。
+  （部署、冒烟、清理、请用户试）。被 auto 模式以「自我批准」拦下 → 不换写法重试，把这条合并命令交给用户（提示用 `!`
+  前缀在会话里跑，或在 `permissions.allow` 加 `Bash(gh pr merge:*)` 以后让模型合），发通知。
 - **单向门**：停在「PR 可合并」，通知用户合并（workflow §5 停点 2）；用户合并后 `/flow:closeout`。
 - 由 agent 执行本 skill 时：agent 做到「PR 已审、可合并」并回报；合并与上线由主会话做。
 
