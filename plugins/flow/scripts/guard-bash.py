@@ -48,18 +48,20 @@ PREFIX_OPTS = {"sudo": "ugUChpDrtT", "nice": "n", "timeout": "sk", "gtimeout": "
                "until": "", "!": "", "{": ""}
 PREFIX_POSITIONALS = {"timeout": 1, "gtimeout": 1}
 SHELLS = {"bash", "sh", "zsh", "dash", "ksh"}
+DECLARE = {"export", "local", "declare", "typeset", "readonly"}
 SAFE_DEVICES = re.compile(r"^/dev/(null|zero|u?random|stdout|stderr|fd/\d+)$")
 DEFAULT_TEST_DB = r"(^|_)test(_|$)"  # app_test、test_x；不认 app_latest
 TEST_DB_HINT = "只允许测试库（.claude/flow.json 的 bash_guard.test_db_pattern，缺省 *_test / test_*）。"
 # MySQL 有同名的数值函数 TRUNCATE(x, d)，后面紧跟括号的不算清表
 DESTRUCTIVE_SQL = re.compile(r"\b(?:drop\s+(?:table|schema|database)|truncate\b(?!\s*\())", re.I)
-DROP_DATABASE = re.compile(r"\bdrop\s+database\s+(?:if\s+exists\s+)?[\"`]?([\w-]+)", re.I)
-DROP_SCHEMA = re.compile(r"\bdrop\s+schema\s+(?:if\s+exists\s+)?[\"`]?([\w-]+)", re.I)
+DROP_DATABASE = re.compile(r"\bdrop\s+database\s+(?:if\s+exists\s+)?[\"`]?([\w${}-]+)", re.I)
+DROP_SCHEMA = re.compile(r"\bdrop\s+schema\s+(?:if\s+exists\s+)?[\"`]?([\w${}-]+)", re.I)
 CONN_SCOPED = re.compile(r"\b(?:drop\s+(?:table|schema)|truncate\b(?!\s*\())", re.I)  # 作用于当前连接的库
 CONN_SCOPED_MYSQL = re.compile(r"\b(?:drop\s+table|truncate\b(?!\s*\())", re.I)  # MySQL 的 SCHEMA 就是 DATABASE
 HEREDOC = re.compile(r"(?<!<)<<(?!<)(-?)\s*(['\"]?)([A-Za-z_][A-Za-z0-9_]*)\2")
 ASSIGN = re.compile(r"^([A-Za-z_][A-Za-z0-9_]*)=(.*)$", re.S)
-VAR = re.compile(r"\$(?:\{([A-Za-z_]\w*)(:?[-=?+][^}]*)?\}|([A-Za-z_]\w*))")
+# $NAME、${NAME…}，以及 $1 / ${3:-x} / $@ 这类位置参数与特殊参数（守卫不知道它们的值）
+VAR = re.compile(r"\$(?:\{([A-Za-z_]\w*|\d+|[@*#?$!-])(:?[-=?+][^}]*)?\}|([A-Za-z_]\w*|\d|[@*#?$!-]))")
 DESIGN_SNAPSHOT = re.compile(r"/conductor/tracks/[^/]+/design[^/]*/")
 UNSET = "\0unset"      # 变量无法解析，且为空时不会报错
 GUARDED = "\0guarded"  # ${VAR:?} 这类为空即报错的写法，视为「未知但非空」
@@ -158,22 +160,84 @@ PROJ = None  # main() 里按 flow.json 建好
 
 
 def strip_heredocs(cmd):
-    """去掉 heredoc 正文（它是数据不是命令）；正文另外返回，喂给 shell / SQL 客户端时再查。"""
-    lines, out, bodies, i = cmd.split("\n"), [], [], 0
-    while i < len(lines):
-        line = lines[i]
-        out.append(line)
+    """去掉 heredoc 正文与注释（它们是数据不是命令）；正文另外返回，喂给 shell / SQL 客户端时再查。
+
+    按引号与 $( ) 嵌套走一遍，只认命令位置上的 `<<` 与 `#`：引号里「提到」的 `<<'EOF'` 不是 heredoc
+    ——当成 heredoc 会把后面整段吞掉、引号失配，退化切词后把引号里的文字当命令拦（测试脚本里
+    写正反例就会撞上）；而 "$(cat <<'EOF' … EOF)" 这种 $( ) 里的 heredoc 照样认。
+    反斜杠续行顺手去掉，免得换行被当成命令分隔、把 `rm -rf \\<换行>/` 拆成两条。
+    """
+    out, bodies, pending = [], [], []
+    stack = [["cmd", 0]]  # 每层 [种类, 括号深度]；种类：cmd / sub（$( )）/ bt（反引号）/ dq / sq / ansi（$'…'）
+    i, n = 0, len(cmd)
+    while i < n:
+        c = cmd[i]
+        kind = stack[-1][0]
+        if kind in ("sq", "ansi"):
+            if kind == "ansi" and c == "\\" and i + 1 < n:
+                out.append(cmd[i:i + 2])
+                i += 2
+                continue
+            out.append(c)
+            i += 1
+            if c == "'":
+                stack.pop()
+            continue
+        if c == "\\" and i + 1 < n:
+            if cmd[i + 1] != "\n":
+                out.append(cmd[i:i + 2])
+            i += 2
+            continue
+        if cmd.startswith("$(", i):
+            stack.append(["sub", 0])
+            out.append("$(")
+            i += 2
+            continue
+        if c == "`":
+            if kind == "bt":
+                stack.pop()
+            else:
+                stack.append(["bt", 0])
+        elif kind == "dq":
+            if c == '"':
+                stack.pop()
+        elif c in "'\"":
+            stack.append(["dq" if c == '"' else "ansi" if i and cmd[i - 1] == "$" else "sq", 0])
+        elif c == "(" and kind == "sub":
+            stack[-1][1] += 1
+        elif c == ")" and kind == "sub":
+            if stack[-1][1]:
+                stack[-1][1] -= 1
+            else:
+                stack.pop()
+        elif c == "#" and (i == 0 or cmd[i - 1] in " \t\n;&|()"):
+            j = cmd.find("\n", i)
+            i = n if j < 0 else j  # 注释到行尾，换行留着
+            continue
+        elif c == "<" and HEREDOC.match(cmd, i):
+            m = HEREDOC.match(cmd, i)
+            pending.append((m.group(1), m.group(3)))
+            out.append(m.group(0))
+            i = m.end()
+            continue
+        elif c == "\n" and pending:
+            out.append(c)
+            i += 1
+            for dash, delim in pending:  # 正文从下一行开始，到单独一行的定界符为止
+                body = []
+                while i < n:
+                    j = cmd.find("\n", i)
+                    j = n if j < 0 else j
+                    line, i = cmd[i:j], j + 1
+                    if (line.lstrip("\t") if dash else line) == delim:
+                        break
+                    body.append(line)
+                bodies.append("\n".join(body))
+            pending = []
+            continue
+        out.append(c)
         i += 1
-        for m in HEREDOC.finditer(line):
-            dash, delim, body = m.group(1), m.group(3), []
-            while i < len(lines):
-                cur = lines[i]
-                i += 1
-                if (cur.lstrip("\t") if dash else cur) == delim:
-                    break
-                body.append(cur)
-            bodies.append("\n".join(body))
-    return "\n".join(out), bodies
+    return "".join(out), bodies
 
 
 def tokenize(cmd):
@@ -281,7 +345,9 @@ def expand(tok, shell_vars, cwd=None):
             return shell_vars[name]
         if name in os.environ:
             return os.environ[name]
-        return GUARDED if (m.group(2) or "").lstrip(":").startswith("?") else UNSET
+        mod = (m.group(2) or "").lstrip(":")
+        # ${X:?} 为空即报错、${X:-默认} 为空取默认值：都是「未知但非空」；其余未知变量可能为空
+        return GUARDED if mod.startswith("?") or (mod[:1] in ("-", "=") and len(mod) > 1) else UNSET
     tok = VAR.sub(sub, tok)
     if tok == "~" or tok.startswith("~/"):
         tok = HOME + tok[1:]
@@ -408,7 +474,7 @@ def change_dir(argv, shell_vars, cwd):
     return os.path.normpath(os.path.join(cwd, t))
 
 
-def check_rm(args, shell_vars, cwd):
+def check_rm(args, shell_vars, cwd, paths=True):
     opts, targets = parse_opts(args)
     recursive = "r" in opts or "R" in opts or "recursive" in opts
     for tok in targets:
@@ -419,7 +485,7 @@ def check_rm(args, shell_vars, cwd):
             continue
         path = os.path.normpath(os.path.join(cwd, t))
         base = glob_base(path)
-        for hit in (glob.glob(path) if base else [path]):
+        for hit in (glob.glob(path) if base and paths else [path] if paths else []):
             # 软链（worktree 里指向主 checkout 的那种）删了无害，不存在的删了也无事发生
             if os.path.lexists(hit) and not os.path.islink(hit):
                 reason = local_rule(hit)
@@ -432,7 +498,7 @@ def check_rm(args, shell_vars, cwd):
             raise Blocked(f"rm -r 目标 `{tok}` 覆盖了根目录 / 家目录 / 主 checkout（{path}）。")
         if os.path.basename(whole) == ".git" and os.path.isdir(whole):
             raise Blocked(f"不能删除 git 仓库目录 {whole}（所有 worktree 与未推送的提交都在里面）。")
-        kept = local_file_under(whole)
+        kept = local_file_under(whole) if paths else None
         if kept:
             raise Blocked(f"rm -r `{tok}` 会连带删掉 {kept}：它是 worktree_links 里不入库的本地文件，删了无法从 git 找回。")
 
@@ -652,15 +718,20 @@ def check_disk(argv):
 
 
 def shell_scripts(argv, stdin_text, shell_vars, cwd):
-    """shell 要执行的脚本：`-c` 的参数、位置参数给的脚本文件，否则就是它的 stdin。"""
+    """shell 要执行的脚本 → [(正文, 是否读自磁盘文件)]：`-c` 的参数、位置参数给的脚本文件，否则是它的 stdin。
+
+    `-n` 只查语法、不执行，返回空。
+    """
     if os.path.basename(argv[0]) not in SHELLS:
         return []
     args = argv[1:]
     for i, a in enumerate(args):
+        if re.fullmatch(r"-[a-zA-Z]+", a) and "n" in a:
+            return []
         if re.fullmatch(r"-[a-z]*c[a-z]*", a):
-            return args[i + 1:i + 2]
+            return [(t, False) for t in args[i + 1:i + 2]]
         if not a.startswith("-"):
-            return [read_small(resolve(a, shell_vars, cwd))]
+            return [(read_small(resolve(a, shell_vars, cwd)), True)]
     return stdin_text()
 
 
@@ -675,7 +746,9 @@ def inline_scripts(argv):
     return out
 
 
-def check(cmd, cwd, depth=0):
+def check(cmd, cwd, depth=0, paths=True):
+    """paths=False：正文读自磁盘上的脚本文件（bash x.sh、bash < x.sh、cat x.sh | sh）。那是项目自己的代码，
+    它写 .env.production 之类是有意为之，只查通用的致命项，不套本项目的路径规则（5–7）。"""
     if depth > 3:
         return
     stripped, bodies = strip_heredocs(cmd)
@@ -684,26 +757,38 @@ def check(cmd, cwd, depth=0):
     segs = [Segment(s) for s in segments(tokenize(stripped))]
     shell_vars = {}
 
+    def writes(targets):
+        if paths:
+            check_writes(targets, shell_vars, cwd)
+
     def piped_text():
-        """管道上游可能喂过来的文本：heredoc、<<<、echo / printf 的参数、cat 的文件。宁多勿漏。"""
-        out = list(bodies)
+        """管道上游可能喂过来的文本 → [(正文, 是否读自文件)]：heredoc、<<<、echo / printf 的参数、cat 的文件。宁多勿漏。"""
+        out = [(b, False) for b in bodies]
         for s in segs:
-            out += s.herestrings
+            out += [(h, False) for h in s.herestrings]
             argv = strip_prefix(s.words)
             if argv and os.path.basename(argv[0]) in ("echo", "printf"):
-                out.append(" ".join(argv[1:]))
+                out.append((" ".join(argv[1:]), False))
             elif argv and os.path.basename(argv[0]) == "cat":
-                out += [read_small(resolve(a, shell_vars, cwd)) for a in parse_opts(argv[1:])[1]]
+                out += [(read_small(resolve(a, shell_vars, cwd)), True) for a in parse_opts(argv[1:])[1]]
         return out
 
     for s in segs:
-        if s.words and all(ASSIGN.match(w) for w in s.words):
-            for w in s.words:
+        words = s.words
+        declare = bool(words) and words[0] in DECLARE  # export / local X=… 也是赋值
+        if declare:
+            words = [w for w in words[1:] if ASSIGN.match(w)]
+        if declare or (words and all(ASSIGN.match(w) for w in words)):
+            writes(s.writes)  # `X=1 > f` 照样会清空 f
+            for w in words:
                 k, v = ASSIGN.match(w).groups()
-                shell_vars[k] = expand(v, shell_vars)
+                # X=$(cmd) / X=`cmd`：值是命令的输出，不知道是什么但不是空——按「未知非空」处理，
+                # 否则 $(…) 会被当成字面路径（未加引号时切词后只剩一个 `$`），拼出的路径落进项目里误拦
+                sub = "$(" in v or "`" in v or v.endswith("$")
+                shell_vars[k] = GUARDED if sub else expand(v, shell_vars)
             continue
         argv = strip_prefix(s.words)
-        check_writes(s.writes, shell_vars, cwd)
+        writes(s.writes)
         if not argv:
             continue
         name = os.path.basename(argv[0])
@@ -711,28 +796,28 @@ def check(cmd, cwd, depth=0):
             cwd = change_dir(argv, shell_vars, cwd) if name != "popd" else UNKNOWN_CWD
             continue
         if name == "rm":
-            check_rm(argv[1:], shell_vars, cwd)
+            check_rm(argv[1:], shell_vars, cwd, paths)
         elif name == "git":
             check_git(argv[1:], shell_vars, cwd)
         elif name in ("docker", "docker-compose", "podman"):
             check_docker(argv)
         elif name == "find":
             check_find(argv[1:], shell_vars, cwd)
-        check_writes(write_targets(argv, shell_vars, cwd), shell_vars, cwd)
+        writes(write_targets(argv, shell_vars, cwd))
         check_disk(argv)
 
         def stdin_text(s=s):
-            own = s.herestrings + (bodies if s.heredoc else []) + \
-                [read_small(resolve(p, shell_vars, cwd)) for p in s.inputs]
+            own = [(t, False) for t in s.herestrings + (bodies if s.heredoc else [])] + \
+                [(read_small(resolve(p, shell_vars, cwd)), True) for p in s.inputs]
             return own if (s.herestrings or s.heredoc or s.inputs) else piped_text()
 
         inner = strip_prefix(exec_inner(argv) or argv)
         if inner:
-            check_sql(inner, stdin_text, shell_vars, cwd)
-            for script in shell_scripts(inner, stdin_text, shell_vars, cwd):
-                check(script, cwd, depth + 1)
+            check_sql(inner, lambda: [t for t, _ in stdin_text()], shell_vars, cwd)
+            for script, from_file in shell_scripts(inner, stdin_text, shell_vars, cwd):
+                check(script, cwd, depth + 1, paths and not from_file)
         for script in inline_scripts(argv):
-            check(script, cwd, depth + 1)
+            check(script, cwd, depth + 1, paths)
 
 
 def load_project():
